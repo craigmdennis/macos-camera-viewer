@@ -49,9 +49,16 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         observeHover()
         observePlayerState()
 
-        player.play(url: config.rtspsURL)
-        window.setFrame(initialFrame, display: true)
-        window.makeKeyAndOrderFront(nil)
+        // Defer the initial frame-set and order-front to the next runloop tick so we
+        // don't trigger a layout pass from inside applicationDidFinishLaunching — that
+        // was the source of the "-layoutSubtreeIfNeeded while already laying out" warning.
+        let initialFrameCopy = initialFrame
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.window.setFrame(initialFrameCopy, display: true)
+            self.window.makeKeyAndOrderFront(nil)
+            self.player.play(url: self.config.rtspsURL)
+        }
     }
 
     deinit {

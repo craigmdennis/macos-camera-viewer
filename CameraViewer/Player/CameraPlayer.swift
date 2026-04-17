@@ -21,9 +21,11 @@ final class CameraPlayer: NSObject, VLCMediaPlayerDelegate {
         self.isMuted = initiallyMuted
         self.player = VLCMediaPlayer()
         super.init()
+        Self.enableVerboseLogging()
         player.drawable = drawable
         player.delegate = self
         applyMute()
+        NSLog("CameraPlayer: VLCKit version %@", VLCLibrary.shared().version)
     }
 
     // VLCKit's binary statically links libvlc but ships no codec plugins.
@@ -36,12 +38,20 @@ final class CameraPlayer: NSObject, VLCMediaPlayerDelegate {
         ]
         if let found = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) {
             setenv("VLC_PLUGIN_PATH", found, 1)
+            NSLog("CameraPlayer: VLC_PLUGIN_PATH=%@", found)
         } else {
             NSLog("CameraPlayer: VLC.app not found — install VLC.app from videolan.org for codec support.")
         }
     }()
 
     private static func configureVLCPluginPath() { _ = configureOnce }
+
+    private static let enableLoggingOnce: Void = {
+        VLCLibrary.shared().debugLogging = true
+        VLCLibrary.shared().debugLoggingLevel = 4
+    }()
+
+    private static func enableVerboseLogging() { _ = enableLoggingOnce }
 
     var videoSize: CGSize? {
         let size = player.videoSize
