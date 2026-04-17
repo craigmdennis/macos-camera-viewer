@@ -1003,6 +1003,8 @@ final class HoverTrackingView: NSView {
     }
 
     override var isFlipped: Bool { true }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 ```
 
@@ -1137,9 +1139,10 @@ final class PiPWindow: NSWindow {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 ```
+
+> Note: `acceptsFirstMouse(for:)` is on `NSView`, not `NSWindow` — it lives in `HoverTrackingView` (Task 7) instead.
 
 - [ ] **Step 2: Build**
 
