@@ -1,0 +1,44 @@
+name: CameraViewer
+options:
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+targets:
+  CameraViewer:
+    type: application
+    platform: macOS
+    sources:
+      - path: CameraViewer
+        excludes:
+          - "Info.plist"
+          - "CameraViewer.entitlements"
+    dependencies:
+      - framework: Frameworks/VLCKit.xcframework
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.craigmdennis.cameraviewer
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: CameraViewer/CameraViewer.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: CameraViewer/Info.plist
+        SWIFT_VERSION: "5.10"
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+  CameraViewerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: CameraViewerTests
+    dependencies:
+      - target: CameraViewer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.craigmdennis.cameraviewer.tests
+        SWIFT_VERSION: "5.10"
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        GENERATE_INFOPLIST_FILE: YES
