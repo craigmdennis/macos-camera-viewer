@@ -4,6 +4,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: PiPWindowController?
     private var statusItemController: StatusItemController?
+    private let streamProxy = StreamProxy()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -27,17 +28,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let controller = PiPWindowController(config: config)
+        do {
+            try streamProxy.start(upstream: config.rtspsURL)
+        } catch {
+            presentProxyFailureAlert(underlying: error)
+            NSApp.terminate(nil)
+            return
+        }
+
+        let controller = PiPWindowController(streamURL: StreamProxy.localURL)
         controller.installDragEndSnap()
         windowController = controller
 
         statusItemController = StatusItemController(
             statePublisher: controller.playerStatePublisher,
-            onReconnect: { [weak controller] in
-                guard let controller else { return }
-                let url = (try? AppConfigLoader.load().rtspsURL) ?? config.rtspsURL
-                controller.player.stop()
-                controller.player.play(url: url)
+            onReconnect: { [weak self, weak controller] in
+                guard let self, let controller else { return }
+                let upstream = (try? AppConfigLoader.load().rtspsURL) ?? config.rtspsURL
+                do {
+                    try self.streamProxy.start(upstream: upstream)
+                } catch {
+                    NSLog("Reconnect: proxy restart failed: %@", String(describing: error))
+                }
+                controller.updateStreamURL(StreamProxy.localURL)
             },
             onToggleVisibility: { [weak controller] in
                 guard let controller else { return }
@@ -51,6 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 controller?.isWindowVisible ?? false
             }
         )
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        streamProxy.stop()
     }
 
     private func openConfigInTextEdit(_ path: URL) {
@@ -81,6 +98,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = "Camera Viewer could not read its config file."
         alert.informativeText = "Details: \(underlying.localizedDescription)\n\nPath: \(AppConfigLoader.defaultFileURL.path)"
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func presentProxyFailureAlert(underlying: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Camera Viewer could not start its stream proxy."
+        alert.informativeText = "Details: \(String(describing: underlying))"
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }

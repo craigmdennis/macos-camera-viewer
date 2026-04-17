@@ -13,6 +13,8 @@ targets:
         excludes:
           - "Info.plist"
           - "CameraViewer.entitlements"
+      - path: bin/go2rtc
+        buildPhase: resources
     dependencies:
       - framework: Frameworks/VLCKit.xcframework
         embed: true

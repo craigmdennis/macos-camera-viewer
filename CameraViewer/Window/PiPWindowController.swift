@@ -7,7 +7,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     let player: CameraPlayer
 
     private let persistence: Persistence
-    private let config: AppConfig
+    private var streamURL: URL
     private let hoverView: HoverTrackingView
     private var chromeHostingView: NSHostingView<ChromeOverlay>!
     private var reconnectPolicy = ReconnectPolicy()
@@ -22,8 +22,8 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         player.$state.eraseToAnyPublisher()
     }
 
-    init(config: AppConfig, persistence: Persistence = Persistence()) {
-        self.config = config
+    init(streamURL: URL, persistence: Persistence = Persistence()) {
+        self.streamURL = streamURL
         self.persistence = persistence
 
         let initialFrame = Self.initialFrame(persisted: persistence.loadFrame())
@@ -57,8 +57,15 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
             guard let self else { return }
             self.window.setFrame(initialFrameCopy, display: true)
             self.window.makeKeyAndOrderFront(nil)
-            self.player.play(url: self.config.rtspsURL)
+            self.player.play(url: self.streamURL)
         }
+    }
+
+    func updateStreamURL(_ url: URL) {
+        streamURL = url
+        reconnectPolicy.reset()
+        player.stop()
+        player.play(url: url)
     }
 
     deinit {
@@ -177,7 +184,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         let delay = reconnectPolicy.recordFailure()
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             guard let self else { return }
-            self.player.play(url: self.config.rtspsURL)
+            self.player.play(url: self.streamURL)
         }
     }
 
