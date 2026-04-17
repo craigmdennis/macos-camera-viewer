@@ -30,4 +30,6 @@ final class HoverTrackingView: NSView {
     }
 
     override var isFlipped: Bool { true }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
