@@ -6,7 +6,7 @@
 
 **Architecture:** AppKit shell (`NSWindow` subclass, menu-bar status item) with SwiftUI chrome overlay via `NSHostingView`. VLCKit handles RTSPS playback. State is small: one config file on disk (JSON), two `UserDefaults` keys (frame + mute), and Combine-published player state. Pure modules — `CornerSnap`, `ReconnectPolicy`, `AppConfig` codec — are unit-tested TDD-style; AppKit integration is verified by a manual smoke-test checklist.
 
-**Tech Stack:** Swift 5.10+, macOS 13+, AppKit + SwiftUI, VLCKit 3.6.x (via SPM), XCTest. Project file generated from YAML via `xcodegen` so the repo stays diff-friendly.
+**Tech Stack:** Swift 5.10+, macOS 13+, AppKit + SwiftUI, VLCKit 3.7.3 (prebuilt xcframework from artifacts.videolan.org, fetched by `scripts/bootstrap.sh` into gitignored `Frameworks/`), XCTest. Project file generated from YAML via `xcodegen` so the repo stays diff-friendly.
 
 **Spec:** `docs/superpowers/specs/2026-04-17-macos-camera-viewer-design.md`
 
@@ -14,14 +14,17 @@
 
 ## Preflight
 
-Before Task 1, install the one build-time tool the plan depends on:
+Before Task 1, install the one build-time tool the plan depends on and make sure Xcode is the active developer directory:
 
 ```bash
 brew install xcodegen
-xcodegen --version   # expect 2.x
+xcodegen --version                                              # expect 2.x
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer # point at Xcode, not CommandLineTools
+sudo xcodebuild -license accept                                 # one-time Xcode license acceptance
+xcodebuild -runFirstLaunch                                      # one-time Xcode first-launch install
 ```
 
-If Homebrew is unavailable, download the `xcodegen` release from https://github.com/yonaskolb/XcodeGen/releases and put it on `PATH`. Also verify Xcode's command-line tools are installed: `xcode-select -p` should print a path.
+If Homebrew is unavailable, download the `xcodegen` release from https://github.com/yonaskolb/XcodeGen/releases and put it on `PATH`.
 
 ---
 
@@ -31,9 +34,13 @@ All paths are relative to `/Users/craigmdennis/Sites/macos-camera-viewer`.
 
 ```
 .
-├── .gitignore                                   # Xcode + macOS noise
+├── .gitignore                                   # Xcode + macOS noise + Frameworks/
 ├── README.md                                    # How to run, config URL, smoke tests
 ├── project.yml                                  # xcodegen input — single source of truth
+├── scripts/
+│   └── bootstrap.sh                             # downloads VLCKit.xcframework (idempotent)
+├── Frameworks/                                  # gitignored; populated by bootstrap.sh
+│   └── VLCKit.xcframework/
 ├── CameraViewer.xcodeproj/                      # generated; gitignored
 ├── CameraViewer/
 │   ├── Info.plist                               # hand-written (LSUIElement, ATS, usage string)
@@ -99,6 +106,9 @@ CameraViewer.xcodeproj/
 .swiftpm/
 .build/
 Package.resolved
+
+# Downloaded frameworks (fetched by scripts/bootstrap.sh)
+Frameworks/
 ```
 
 - [ ] **Step 2: Create `project.yml` (xcodegen input)**
@@ -110,10 +120,6 @@ options:
     macOS: "13.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
-packages:
-  VLCKit:
-    url: https://code.videolan.org/videolan/VLCKit.git
-    from: 3.6.0
 targets:
   CameraViewer:
     type: application
@@ -124,9 +130,8 @@ targets:
           - "Info.plist"
           - "CameraViewer.entitlements"
     dependencies:
-      - package: VLCKit
-    info:
-      path: CameraViewer/Info.plist
+      - framework: Frameworks/VLCKit.xcframework
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.craigmdennis.cameraviewer
@@ -152,9 +157,44 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.craigmdennis.cameraviewer.tests
         SWIFT_VERSION: "5.10"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
+        GENERATE_INFOPLIST_FILE: YES
 ```
 
-> If `packages: VLCKit` fails to resolve during `xcodegen generate` or during a build, replace the package with the official xcframework: download `VLCKit-3.6.x.dmg` from https://download.videolan.org/pub/videolan/vlckit/, copy `VLCKit.xcframework` into `Frameworks/`, remove the `packages:` block and the `package: VLCKit` dependency, and add under the `CameraViewer` target: `dependencies: [- framework: Frameworks/VLCKit.xcframework, embed: true]`.
+> Note: VLCKit has no `Package.swift` at any of its release tags, so the SPM path doesn't work. We consume it as a prebuilt xcframework fetched by `scripts/bootstrap.sh` (see Step 2b below). Do **not** put an `info:` block on the `CameraViewer` target — combined with `INFOPLIST_FILE`, xcodegen will regenerate `Info.plist` on every run and wipe the hand-maintained keys.
+
+- [ ] **Step 2b: Create `scripts/bootstrap.sh` and make it executable**
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Downloads VLCKit.xcframework into Frameworks/. Idempotent.
+
+VLCKIT_URL="https://artifacts.videolan.org/VLCKit/VLCKit/VLCKit-3.7.3-319ed2c0-79128878.tar.xz"
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+FRAMEWORKS_DIR="$ROOT/Frameworks"
+XCFRAMEWORK="$FRAMEWORKS_DIR/VLCKit.xcframework"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+if [[ -d "$XCFRAMEWORK" ]]; then
+    echo "VLCKit.xcframework already present. Skipping."
+    exit 0
+fi
+
+echo "Downloading VLCKit.xcframework..."
+mkdir -p "$FRAMEWORKS_DIR"
+curl -fL --progress-bar -o "$TMP_DIR/vlckit.tar.xz" "$VLCKIT_URL"
+
+echo "Extracting..."
+tar -xJf "$TMP_DIR/vlckit.tar.xz" -C "$TMP_DIR"
+cp -R "$TMP_DIR/VLCKit - binary package/VLCKit.xcframework" "$FRAMEWORKS_DIR/"
+
+echo "VLCKit.xcframework installed at $XCFRAMEWORK"
+```
+
+Then `chmod +x scripts/bootstrap.sh && ./scripts/bootstrap.sh` to fetch the framework (~38 MB download, ~150 MB extracted).
 
 - [ ] **Step 3: Create `CameraViewer/Info.plist`**
 
@@ -283,7 +323,10 @@ On first launch the app writes a stub config to `~/Library/Application Support/C
 This app dynamically links VLCKit, which is LGPL-2.1-or-later. See https://code.videolan.org/videolan/VLCKit for details. Personal use is unrestricted.
 ```
 
-- [ ] **Step 7: Generate the Xcode project and verify it builds**
+- [ ] **Step 7: Bootstrap VLCKit, generate the Xcode project, and verify it builds**
+
+Run: `./scripts/bootstrap.sh`
+Expected: `VLCKit.xcframework installed at <path>` on first run, or `already present` on subsequent runs.
 
 Run: `xcodegen generate`
 Expected: `Created project at CameraViewer.xcodeproj`
@@ -297,8 +340,8 @@ Expected: `** TEST SUCCEEDED **`
 - [ ] **Step 8: Commit**
 
 ```bash
-git add .gitignore project.yml README.md CameraViewer/ CameraViewerTests/
-git commit -m "chore: project scaffold with xcodegen, VLCKit dependency, and smoke test"
+git add .gitignore project.yml README.md scripts/ CameraViewer/ CameraViewerTests/
+git commit -m "chore: project scaffold with xcodegen, VLCKit xcframework, smoke test"
 ```
 
 ---
