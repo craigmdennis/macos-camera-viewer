@@ -34,6 +34,8 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         hoverView.autoresizingMask = [.width, .height]
         hoverView.wantsLayer = true
         hoverView.layer?.backgroundColor = NSColor.black.cgColor
+        hoverView.layer?.borderWidth = 1
+        hoverView.layer?.borderColor = NSColor(white: 1, alpha: 0.1).cgColor
         self.hoverView = hoverView
 
         self.player = CameraPlayer(drawable: hoverView, initiallyMuted: persistence.loadMuted())
@@ -166,9 +168,9 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - NSWindowDelegate
 
-    func windowDidResize(_ notification: Notification) {
-        persistence.saveFrame(window.frame)
-    }
+    // windowDidMove fires per-pixel during drag; saving on every tick is wasteful but bounded
+    // by UserDefaults' internal coalescing. windowDidEndLiveResize handles end-of-resize cleanly.
+    // windowDidResize is intentionally NOT implemented — it duplicates windowDidEndLiveResize.
 
     func windowDidMove(_ notification: Notification) {
         persistence.saveFrame(window.frame)

@@ -14,7 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch AppConfigError.fileNotFound(let path) {
             try? AppConfigLoader.writeStub(to: path)
             presentFirstLaunchAlert(path: path)
-            NSWorkspace.shared.open(path)
+            openConfigInTextEdit(path)
             NSApp.terminate(nil)
             return
         } catch AppConfigError.malformed(let underlying) {
@@ -35,9 +35,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statePublisher: controller.playerStatePublisher,
             onReconnect: { [weak controller] in
                 guard let controller else { return }
+                let url = (try? AppConfigLoader.load().rtspsURL) ?? config.rtspsURL
                 controller.player.stop()
-                controller.player.play(url: config.rtspsURL)
+                controller.player.play(url: url)
             }
+        )
+    }
+
+    private func openConfigInTextEdit(_ path: URL) {
+        let textEdit = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
+        NSWorkspace.shared.open(
+            [path],
+            withApplicationAt: textEdit,
+            configuration: NSWorkspace.OpenConfiguration()
         )
     }
 
