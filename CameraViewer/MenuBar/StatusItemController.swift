@@ -1,0 +1,84 @@
+import AppKit
+import Combine
+
+final class StatusItemController: NSObject {
+    private let statusItem: NSStatusItem
+    private let onReconnect: () -> Void
+    private var cancellables = Set<AnyCancellable>()
+    private var lastErrorItem: NSMenuItem?
+    private var lastErrorAt: Date?
+
+    init(statePublisher: AnyPublisher<CameraPlayer.State, Never>, onReconnect: @escaping () -> Void) {
+        self.onReconnect = onReconnect
+        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        super.init()
+
+        let button = statusItem.button
+        button?.image = NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Camera Viewer")
+        button?.image?.isTemplate = true
+
+        buildMenu()
+
+        statePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in self?.handleState(state) }
+            .store(in: &cancellables)
+    }
+
+    private func buildMenu() {
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Reveal Config in Finder", action: #selector(revealConfig), keyEquivalent: ""))
+        menu.items.last?.target = self
+        menu.addItem(NSMenuItem(title: "Reconnect", action: #selector(reconnect), keyEquivalent: ""))
+        menu.items.last?.target = self
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        statusItem.menu = menu
+    }
+
+    private func handleState(_ state: CameraPlayer.State) {
+        switch state {
+        case .playing:
+            statusItem.button?.image = NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Playing")
+            statusItem.button?.image?.isTemplate = true
+            lastErrorAt = nil
+            if let item = lastErrorItem {
+                statusItem.menu?.removeItem(item)
+                lastErrorItem = nil
+            }
+        case .error(let message):
+            statusItem.button?.image = NSImage(systemSymbolName: "video.slash.fill", accessibilityDescription: "Error")
+            statusItem.button?.image?.isTemplate = true
+            noteError(message)
+        case .idle, .opening, .buffering:
+            break
+        }
+    }
+
+    private func noteError(_ message: String) {
+        let now = Date()
+        if lastErrorAt == nil { lastErrorAt = now }
+        // Show "Last error: …" only after 30 s of continuous failure.
+        guard let since = lastErrorAt, now.timeIntervalSince(since) >= 30 else { return }
+        guard let menu = statusItem.menu else { return }
+        let title = "Last error: \(message)"
+        if let item = lastErrorItem {
+            item.title = title
+        } else {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.insertItem(item, at: 0)
+            menu.insertItem(.separator(), at: 1)
+            lastErrorItem = item
+        }
+    }
+
+    @objc private func revealConfig() {
+        let url = AppConfigLoader.defaultFileURL
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    @objc private func reconnect() {
+        onReconnect()
+    }
+}
