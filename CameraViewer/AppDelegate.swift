@@ -38,6 +38,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let url = (try? AppConfigLoader.load().rtspsURL) ?? config.rtspsURL
                 controller.player.stop()
                 controller.player.play(url: url)
+            },
+            onToggleVisibility: { [weak controller] in
+                guard let controller else { return }
+                if controller.isWindowVisible {
+                    controller.hideWindow()
+                } else {
+                    controller.showWindow()
+                }
+            },
+            isWindowVisible: { [weak controller] in
+                controller?.isWindowVisible ?? false
             }
         )
     }

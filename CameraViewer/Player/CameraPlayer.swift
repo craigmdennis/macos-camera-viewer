@@ -14,15 +14,34 @@ final class CameraPlayer: NSObject, VLCMediaPlayerDelegate {
     @Published private(set) var state: State = .idle
     @Published private(set) var isMuted: Bool
 
-    private let player = VLCMediaPlayer()
+    private let player: VLCMediaPlayer
 
     init(drawable: NSView, initiallyMuted: Bool) {
+        Self.configureVLCPluginPath()
         self.isMuted = initiallyMuted
+        self.player = VLCMediaPlayer()
         super.init()
         player.drawable = drawable
         player.delegate = self
         applyMute()
     }
+
+    // VLCKit's binary statically links libvlc but ships no codec plugins.
+    // Point libvlc at /Applications/VLC.app's plugin directory at process startup.
+    // Must run BEFORE any VLCMediaPlayer is constructed.
+    private static let configureOnce: Void = {
+        let candidates = [
+            "/Applications/VLC.app/Contents/MacOS/plugins",
+            "/Applications/VLC.app/Contents/Resources/plugins"
+        ]
+        if let found = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) {
+            setenv("VLC_PLUGIN_PATH", found, 1)
+        } else {
+            NSLog("CameraPlayer: VLC.app not found — install VLC.app from videolan.org for codec support.")
+        }
+    }()
+
+    private static func configureVLCPluginPath() { _ = configureOnce }
 
     var videoSize: CGSize? {
         let size = player.videoSize

@@ -13,7 +13,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     private var reconnectPolicy = ReconnectPolicy()
     private var reconnectTimer: Timer?
     private var hoverFadeOutTimer: Timer?
-    private var dragEndMonitor: Any?
+    private var dragEndDebounce: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var chromeVisible = false
 
@@ -57,10 +57,18 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     deinit {
         reconnectTimer?.invalidate()
         hoverFadeOutTimer?.invalidate()
-        if let monitor = dragEndMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
+        dragEndDebounce?.invalidate()
     }
+
+    func showWindow() {
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    func hideWindow() {
+        window.orderOut(nil)
+    }
+
+    var isWindowVisible: Bool { window.isVisible }
 
     // MARK: - Layout
 
@@ -90,13 +98,18 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         ChromeOverlay(
             isVisible: chromeVisible,
             isMuted: player.isMuted,
-            onClose: { NSApp.terminate(nil) },
+            onClose: { [weak self] in self?.hideWindow() },
             onToggleMute: { [weak self] in self?.toggleMute() }
         )
     }
 
     private func refreshChrome() {
-        chromeHostingView.rootView = currentOverlay()
+        // Update the SwiftUI tree off the current run-loop iteration to avoid
+        // "called -layoutSubtreeIfNeeded on a view which is already being laid out".
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.chromeHostingView.rootView = self.currentOverlay()
+        }
     }
 
     // MARK: - Hover
@@ -168,33 +181,38 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - NSWindowDelegate
 
-    // windowDidMove fires per-pixel during drag; saving on every tick is wasteful but bounded
-    // by UserDefaults' internal coalescing. windowDidEndLiveResize handles end-of-resize cleanly.
-    // windowDidResize is intentionally NOT implemented — it duplicates windowDidEndLiveResize.
-
     func windowDidMove(_ notification: Notification) {
         persistence.saveFrame(window.frame)
+        scheduleDragEndSnap()
     }
 
     func windowDidEndLiveResize(_ notification: Notification) {
         persistence.saveFrame(window.frame)
     }
 
-    // Corner snap on drag-end. AppKit doesn't expose "window drag ended" directly —
-    // windowDidMove fires continuously during drag — so we listen for leftMouseUp in this window.
+    // Corner snap on drag-end. AppKit doesn't fire a discrete "drag ended" event
+    // for windows moved via isMovableByWindowBackground, so we debounce windowDidMove
+    // — when no further moves arrive for 150 ms, treat that as the drag ending.
     func installDragEndSnap() {
-        dragEndMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] event in
-            guard let self, event.window === self.window else { return event }
-            let screen = self.window.screen?.visibleFrame ?? NSScreen.main!.visibleFrame
-            let snapped = CornerSnap.snap(windowFrame: self.window.frame, screenVisibleFrame: screen)
-            if snapped != self.window.frame {
-                NSAnimationContext.runAnimationGroup { ctx in
-                    ctx.duration = 0.15
-                    self.window.animator().setFrame(snapped, display: true)
-                }
-                self.persistence.saveFrame(snapped)
-            }
-            return event
+        // No-op for API compatibility with AppDelegate; the snap is wired through
+        // windowDidMove → scheduleDragEndSnap → snapToNearestCorner.
+    }
+
+    private func scheduleDragEndSnap() {
+        dragEndDebounce?.invalidate()
+        dragEndDebounce = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
+            self?.snapToNearestCorner()
         }
+    }
+
+    private func snapToNearestCorner() {
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        let snapped = CornerSnap.snap(windowFrame: window.frame, screenVisibleFrame: visible)
+        guard snapped != window.frame else { return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            window.animator().setFrame(snapped, display: true)
+        }
+        persistence.saveFrame(snapped)
     }
 }

@@ -1,15 +1,25 @@
 import AppKit
 import Combine
 
-final class StatusItemController: NSObject {
+final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let onReconnect: () -> Void
+    private let onToggleVisibility: () -> Void
+    private let isWindowVisible: () -> Bool
     private var cancellables = Set<AnyCancellable>()
     private var lastErrorItem: NSMenuItem?
     private var lastErrorAt: Date?
+    private var showHideItem: NSMenuItem!
 
-    init(statePublisher: AnyPublisher<CameraPlayer.State, Never>, onReconnect: @escaping () -> Void) {
+    init(
+        statePublisher: AnyPublisher<CameraPlayer.State, Never>,
+        onReconnect: @escaping () -> Void,
+        onToggleVisibility: @escaping () -> Void,
+        isWindowVisible: @escaping () -> Bool
+    ) {
         self.onReconnect = onReconnect
+        self.onToggleVisibility = onToggleVisibility
+        self.isWindowVisible = isWindowVisible
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -27,13 +37,27 @@ final class StatusItemController: NSObject {
 
     private func buildMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Reveal Config in Finder", action: #selector(revealConfig), keyEquivalent: ""))
-        menu.items.last?.target = self
-        menu.addItem(NSMenuItem(title: "Reconnect", action: #selector(reconnect), keyEquivalent: ""))
-        menu.items.last?.target = self
+        menu.delegate = self
+
+        showHideItem = NSMenuItem(title: "Hide Camera", action: #selector(toggleVisibility), keyEquivalent: "")
+        showHideItem.target = self
+        menu.addItem(showHideItem)
+
+        let reveal = NSMenuItem(title: "Reveal Config in Finder", action: #selector(revealConfig), keyEquivalent: "")
+        reveal.target = self
+        menu.addItem(reveal)
+
+        let reconnectItem = NSMenuItem(title: "Reconnect", action: #selector(reconnect), keyEquivalent: "")
+        reconnectItem.target = self
+        menu.addItem(reconnectItem)
+
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        showHideItem.title = isWindowVisible() ? "Hide Camera" : "Show Camera"
     }
 
     private func handleState(_ state: CameraPlayer.State) {
@@ -80,5 +104,9 @@ final class StatusItemController: NSObject {
 
     @objc private func reconnect() {
         onReconnect()
+    }
+
+    @objc private func toggleVisibility() {
+        onToggleVisibility()
     }
 }
