@@ -157,7 +157,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
             chromeVisible = true
             refreshChrome()
         } else {
-            hoverFadeOutTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            hoverFadeOutTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
                 self?.chromeVisible = false
                 self?.refreshChrome()
             }
