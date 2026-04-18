@@ -79,7 +79,7 @@ final class StreamProxy {
           bin: \(ffmpegBinary)
         streams:
           \(Self.streamName):
-            - "ffmpeg:\(upstream.absoluteString)#video=h264#audio=copy#input=rtsp/tcp"
+            - "ffmpeg:\(upstream.absoluteString)#video=h264#audio=copy"
 
         """
         let dir = FileManager.default.temporaryDirectory
