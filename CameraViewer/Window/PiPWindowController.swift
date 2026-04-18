@@ -39,6 +39,8 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         hoverView.layer?.backgroundColor = NSColor.black.cgColor
         hoverView.layer?.borderWidth = 1
         hoverView.layer?.borderColor = NSColor(white: 1, alpha: 0.1).cgColor
+        hoverView.layer?.cornerRadius = 12
+        hoverView.layer?.masksToBounds = true
         self.hoverView = hoverView
 
         // VLC's CAOpenGLLayer attaches to the drawable's backing layer at play time,
