@@ -84,9 +84,13 @@ final class CameraPlayer: NSObject, VLCMediaPlayerDelegate {
     // MARK: - VLCMediaPlayerDelegate
 
     func mediaPlayerStateChanged(_ notification: Notification) {
+        // Capture state on the notification thread before hopping to main;
+        // reading player.state inside the async block races with subsequent notifications.
+        let vlcState = player.state
+        NSLog("CameraPlayer: VLC state → %d", vlcState.rawValue)
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            switch self.player.state {
+            switch vlcState {
             case .opening:
                 self.state = .opening
             case .buffering:
