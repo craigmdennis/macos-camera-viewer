@@ -47,8 +47,9 @@ final class CameraPlayer: NSObject, VLCMediaPlayerDelegate {
     private static func configureVLCPluginPath() { _ = configureOnce }
 
     private static let enableLoggingOnce: Void = {
-        VLCLibrary.shared().debugLogging = true
-        VLCLibrary.shared().debugLoggingLevel = 4
+        let logger = VLCConsoleLogger()
+        logger.level = .debug
+        VLCLibrary.shared().loggers = [logger]
     }()
 
     private static func enableVerboseLogging() { _ = enableLoggingOnce }
