@@ -52,17 +52,34 @@ final class StreamProxy {
         stop()
     }
 
+    private static func resolveFfmpegBinary() -> String {
+        // Prefer the user's Homebrew install, then /usr/local, then PATH-relative "ffmpeg".
+        let candidates = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
+        if let found = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            return found
+        }
+        return "ffmpeg"
+    }
+
     private func writeConfig(upstream: URL) throws -> URL {
+        // go2rtc transcodes via its bundled/installed ffmpeg. We force H.264 video
+        // because Unifi Protect often streams HEVC on the "high" quality URL and
+        // VLCKit 3.x's H.264 decoder chokes on H.265 NAL units arriving as passthrough.
+        // Audio is copied unchanged (AAC → AAC).
+        let ffmpegBinary = Self.resolveFfmpegBinary()
         let yaml = """
         api:
-          listen: ""
+          listen: "127.0.0.1:1984"
         rtsp:
           listen: "\(Self.listenHost):\(Self.listenPort)"
         log:
-          level: info
+          level: debug
+          format: text
+        ffmpeg:
+          bin: \(ffmpegBinary)
         streams:
           \(Self.streamName):
-            - "\(upstream.absoluteString)#backchannel=0"
+            - "ffmpeg:\(upstream.absoluteString)#video=h264#audio=copy#input=rtsp/tcp"
 
         """
         let dir = FileManager.default.temporaryDirectory
