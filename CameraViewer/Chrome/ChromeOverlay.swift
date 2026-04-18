@@ -3,40 +3,50 @@ import SwiftUI
 struct ChromeOverlay: View {
     let isVisible: Bool
     let isMuted: Bool
+    let isLoading: Bool
     let onClose: () -> Void
     let onToggleMute: () -> Void
 
     var body: some View {
-        VStack {
-            HStack(spacing: 12) {
-                Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close")
-
-                Button(action: onToggleMute) {
-                    Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isMuted ? "Unmute" : "Mute")
+        ZStack {
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(1.5)
+                    .tint(.white)
             }
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 14)
-            .frame(height: 36)
-            .background(
-                VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow)
-                    .clipShape(Capsule())
-            )
-            .padding(.top, 10)
 
-            Spacer()
+            VStack {
+                HStack(spacing: 12) {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+
+                    Button(action: onToggleMute) {
+                        Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isMuted ? "Unmute" : "Mute")
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .frame(height: 36)
+                .background(
+                    VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow)
+                        .clipShape(Capsule())
+                )
+                .padding(.top, 10)
+
+                Spacer()
+            }
+            .opacity(isVisible ? 1 : 0)
+            .animation(.easeInOut(duration: isVisible ? 0.15 : 0.25), value: isVisible)
+            .allowsHitTesting(isVisible)
         }
-        .opacity(isVisible ? 1 : 0)
-        .animation(.easeInOut(duration: isVisible ? 0.15 : 0.25), value: isVisible)
-        .allowsHitTesting(isVisible)
     }
 }
 

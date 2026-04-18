@@ -9,6 +9,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     private let persistence: Persistence
     private var streamURL: URL
     private let hoverView: HoverTrackingView
+    private let playerDrawableView: NSView
     private var chromeHostingView: NSHostingView<ChromeOverlay>!
     private var reconnectPolicy = ReconnectPolicy()
     private var reconnectTimer: Timer?
@@ -16,6 +17,8 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     private var dragEndDebounce: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var chromeVisible = false
+    private var isLoading = true
+    private var videoSizeTimer: Timer?
 
     // Exposed so StatusItemController can observe state.
     var playerStatePublisher: AnyPublisher<CameraPlayer.State, Never> {
@@ -38,11 +41,20 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         hoverView.layer?.borderColor = NSColor(white: 1, alpha: 0.1).cgColor
         self.hoverView = hoverView
 
-        self.player = CameraPlayer(drawable: hoverView, initiallyMuted: persistence.loadMuted())
+        // VLC's CAOpenGLLayer attaches to the drawable's backing layer at play time,
+        // landing on top of any existing subviews. Using a dedicated child view keeps
+        // the chrome overlay as a sibling above the player.
+        let playerDrawableView = NSView(frame: NSRect(origin: .zero, size: initialFrame.size))
+        playerDrawableView.autoresizingMask = [.width, .height]
+        playerDrawableView.wantsLayer = true
+        self.playerDrawableView = playerDrawableView
+
+        self.player = CameraPlayer(drawable: playerDrawableView, initiallyMuted: persistence.loadMuted())
 
         super.init()
 
         window.contentView = hoverView
+        hoverView.addSubview(playerDrawableView)
         window.delegate = self
 
         installChrome()
@@ -72,6 +84,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         reconnectTimer?.invalidate()
         hoverFadeOutTimer?.invalidate()
         dragEndDebounce?.invalidate()
+        videoSizeTimer?.invalidate()
     }
 
     func showWindow() {
@@ -112,6 +125,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         ChromeOverlay(
             isVisible: chromeVisible,
             isMuted: player.isMuted,
+            isLoading: isLoading,
             onClose: { [weak self] in self?.hideWindow() },
             onToggleMute: { [weak self] in self?.toggleMute() }
         )
@@ -167,14 +181,21 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     }
 
     private func handlePlayerState(_ state: CameraPlayer.State) {
+        NSLog("PiPWindowController: player state → %@", String(describing: state))
         switch state {
         case .playing:
             reconnectPolicy.reset()
             reconnectTimer?.invalidate()
-            lockAspectRatioToVideoSize()
+            isLoading = false
+            refreshChrome()
+            scheduleVideoSizeLock()
         case .error:
+            isLoading = true
+            refreshChrome()
             scheduleReconnect()
         case .idle, .opening, .buffering:
+            // Don't re-show the spinner once playing has started; VLC re-enters
+            // buffering mid-stream on format changes and during the startup flush.
             break
         }
     }
@@ -188,9 +209,30 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func lockAspectRatioToVideoSize() {
-        guard let size = player.videoSize, size.width > 0, size.height > 0 else { return }
+    // VLC populates videoSize asynchronously after the .playing state fires.
+    // Poll until it's available (typically within 1-2 ticks).
+    private func scheduleVideoSizeLock() {
+        videoSizeTimer?.invalidate()
+        videoSizeTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            if let size = self.player.videoSize, size.width > 0, size.height > 0 {
+                timer.invalidate()
+                self.applyAspectRatio(size)
+            }
+        }
+    }
+
+    private func applyAspectRatio(_ size: CGSize) {
         window.contentAspectRatio = size
+        let ar = size.height / size.width
+        let currentWidth = window.frame.width
+        let targetHeight = (currentWidth * ar).rounded()
+        guard abs(targetHeight - window.frame.height) > 2 else { return }
+        var newFrame = window.frame
+        newFrame.size.height = targetHeight
+        newFrame.origin.y = window.frame.maxY - targetHeight
+        window.setFrame(newFrame, display: true, animate: true)
+        persistence.saveFrame(newFrame)
     }
 
     // MARK: - NSWindowDelegate
