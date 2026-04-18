@@ -13,8 +13,8 @@ final class PiPWindow: NSWindow {
         isMovableByWindowBackground = true
         titlebarAppearsTransparent = true
         hasShadow = true
-        backgroundColor = .black
-        isOpaque = true
+        backgroundColor = .clear
+        isOpaque = false
         hidesOnDeactivate = false
 
         contentMinSize = NSSize(width: 320, height: 180)
