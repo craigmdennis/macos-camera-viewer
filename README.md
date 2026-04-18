@@ -64,3 +64,7 @@ A `config.example.json` is included in this repo as a reference.
 ## Licensing
 
 This app dynamically links VLCKit, which is LGPL-2.1-or-later. See https://code.videolan.org/videolan/VLCKit for details. Personal use is unrestricted.
+
+## Disclaimer
+
+This codebase was generated with [Claude Code](https://claude.ai/code) (Anthropic). It works for personal use but has not been formally audited or tested beyond the author's own setup.
