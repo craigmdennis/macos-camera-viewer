@@ -9,7 +9,23 @@ A single-window macOS app that displays a local Unifi Protect RTSPS camera feed 
 - `xcodegen` (`brew install xcodegen`)
 - A Unifi Protect camera with RTSPS enabled, reachable on the local network.
 
-## Getting started
+## Install
+
+```sh
+make install
+```
+
+This builds a Release binary, copies it to `/Applications/CameraViewer.app`, and clears the Gatekeeper quarantine flag. The first time macOS may still ask you to confirm — click Open.
+
+To remove:
+
+```sh
+make uninstall
+```
+
+To add Camera Viewer to Login Items so it launches at login: System Settings → General → Login Items → add CameraViewer.
+
+## Development
 
 ```sh
 ./scripts/bootstrap.sh    # downloads VLCKit.xcframework into Frameworks/
@@ -20,11 +36,20 @@ open CameraViewer.xcodeproj
 
 `scripts/bootstrap.sh` is idempotent; run it after a fresh clone and whenever `Frameworks/` is empty.
 
+Other `make` targets:
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Release build only (no install) |
+| `make install` | Build and copy to `/Applications` |
+| `make uninstall` | Remove from `/Applications` |
+| `make clean` | Clean Xcode build products |
+| `make bootstrap` | Re-download VLCKit xcframework |
+
+## Configuration
+
 On first launch the app writes a stub config to `~/Library/Application Support/CameraViewer/config.json` and opens it in TextEdit. Replace `rtspsURL` with your camera's RTSPS URL (find it in the Protect web UI → Settings → Advanced → RTSP, e.g. `rtsps://10.0.0.1:7441/YOUR_CAMERA_ID?enableSrtp`), save, and relaunch.
 
-## Manual smoke tests
-
-(See Task 13 in `docs/superpowers/plans/2026-04-17-macos-camera-viewer.md`.)
 
 ## Licensing
 
