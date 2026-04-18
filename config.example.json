@@ -1,0 +1,4 @@
+{
+  "_comment": "Copy this file to ~/Library/Application Support/CameraViewer/config.json and replace rtspsURL with your camera's RTSPS URL.",
+  "rtspsURL": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID?enableSrtp"
+}

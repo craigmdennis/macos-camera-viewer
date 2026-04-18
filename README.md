@@ -48,7 +48,17 @@ Other `make` targets:
 
 ## Configuration
 
-On first launch the app writes a stub config to `~/Library/Application Support/CameraViewer/config.json` and opens it in TextEdit. Replace `rtspsURL` with your camera's RTSPS URL (find it in the Protect web UI → Settings → Advanced → RTSP, e.g. `rtsps://10.0.0.1:7441/YOUR_CAMERA_ID?enableSrtp`), save, and relaunch.
+On first launch the app writes a stub config to `~/Library/Application Support/CameraViewer/config.json` and opens it in TextEdit. Replace `rtspsURL` with your camera's RTSPS URL, save, and relaunch.
+
+Find your RTSPS URL in the Protect web UI → camera Settings → Advanced → RTSP. It looks like:
+
+```json
+{
+  "rtspsURL": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID?enableSrtp"
+}
+```
+
+A `config.example.json` is included in this repo as a reference.
 
 
 ## Licensing

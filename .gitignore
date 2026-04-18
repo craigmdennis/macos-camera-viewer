@@ -16,3 +16,6 @@ Package.resolved
 
 # Downloaded frameworks (fetched by scripts/bootstrap.sh)
 Frameworks/
+
+# Claude Code session files
+.claude/
