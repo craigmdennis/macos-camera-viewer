@@ -1,6 +1,6 @@
 APP_NAME   := CameraViewer
 SCHEME     := CameraViewer
-BUILD_DIR  := $(shell xcodebuild -scheme $(SCHEME) -configuration Release -showBuildSettings 2>/dev/null | awk '/BUILT_PRODUCTS_DIR/{print $$3}')
+BUILD_DIR  := $(shell xcodebuild -scheme $(SCHEME) -configuration Release -showBuildSettings 2>/dev/null | awk '$$1 == "BUILT_PRODUCTS_DIR" {print $$3}')
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_TO := /Applications/$(APP_NAME).app
 
