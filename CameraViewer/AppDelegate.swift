@@ -5,6 +5,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: PiPWindowController?
     private var statusItemController: StatusItemController?
     private let streamProxy = StreamProxy()
+    private var activeCamera: CameraConfig?
+    private var loadedCameras: [CameraConfig] = []
+    private let persistence = Persistence()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -28,15 +31,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        loadedCameras = config.cameras
+
+        let savedName = persistence.loadSelectedCameraName()
+        let camera = config.cameras.first(where: { $0.name == savedName }) ?? config.cameras[0]
+        activeCamera = camera
+        persistence.saveSelectedCameraName(camera.name)
+
         do {
-            try streamProxy.start(upstream: config.rtspsURL)
+            try streamProxy.start(upstream: camera.uri)
         } catch {
             presentProxyFailureAlert(underlying: error)
             NSApp.terminate(nil)
             return
         }
 
-        let controller = PiPWindowController(streamURL: StreamProxy.localURL)
+        let controller = PiPWindowController(streamURL: StreamProxy.localURL, persistence: persistence)
         controller.installDragEndSnap()
         windowController = controller
 
@@ -44,9 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statePublisher: controller.playerStatePublisher,
             onReconnect: { [weak self, weak controller] in
                 guard let self, let controller else { return }
-                let upstream = (try? AppConfigLoader.load().rtspsURL) ?? config.rtspsURL
+                let reloadedConfig = (try? AppConfigLoader.load()) ?? AppConfig(cameras: self.loadedCameras)
+                self.loadedCameras = reloadedConfig.cameras
+                let currentName = self.activeCamera?.name
+                let target = reloadedConfig.cameras.first(where: { $0.name == currentName }) ?? reloadedConfig.cameras[0]
+                self.activeCamera = target
+                self.persistence.saveSelectedCameraName(target.name)
                 do {
-                    try self.streamProxy.start(upstream: upstream)
+                    try self.streamProxy.start(upstream: target.uri)
                 } catch {
                     NSLog("Reconnect: proxy restart failed: %@", String(describing: error))
                 }
@@ -62,6 +77,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             isWindowVisible: { [weak controller] in
                 controller?.isWindowVisible ?? false
+            },
+            cameras: { [weak self] in
+                self?.loadedCameras ?? []
+            },
+            selectedCameraName: { [weak self] in
+                self?.activeCamera?.name
+            },
+            onSelectCamera: { [weak self, weak controller] camera in
+                guard let self, let controller else { return }
+                self.activeCamera = camera
+                self.persistence.saveSelectedCameraName(camera.name)
+                do {
+                    try self.streamProxy.start(upstream: camera.uri)
+                } catch {
+                    NSLog("Camera switch: proxy restart failed: %@", String(describing: error))
+                }
+                controller.updateStreamURL(StreamProxy.localURL)
             }
         )
     }
@@ -88,7 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         A template config file has been created at:
         \(path.path)
 
-        Open it, replace the placeholder RTSPS URL with your camera's URL (Protect web UI → Settings → Advanced → RTSP), save, and launch Camera Viewer again.
+        Open it, replace the placeholder RTSPS URLs with your camera URLs (Protect web UI → Settings → Advanced → RTSP), save, and launch Camera Viewer again.
         """
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -97,7 +129,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func presentMalformedAlert(underlying: Error) {
         let alert = NSAlert()
         alert.messageText = "Camera Viewer could not read its config file."
-        alert.informativeText = "Details: \(underlying.localizedDescription)\n\nPath: \(AppConfigLoader.defaultFileURL.path)"
+        alert.informativeText = """
+        Details: \(underlying.localizedDescription)
+
+        Path: \(AppConfigLoader.defaultFileURL.path)
+
+        The config format has changed. Expected:
+        { "cameras": [{ "name": "…", "uri": "rtsps://…" }] }
+        """
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
