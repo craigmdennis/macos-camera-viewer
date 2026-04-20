@@ -1,4 +1,4 @@
-APP_NAME   := CameraViewer
+APP_NAME   := Camera Viewer
 SCHEME     := CameraViewer
 BUILD_DIR  := $(shell xcodebuild -scheme $(SCHEME) -configuration Release -showBuildSettings 2>/dev/null | awk '$$1 == "BUILT_PRODUCTS_DIR" {print $$3}')
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
