@@ -67,7 +67,9 @@ final class AppConfigTests: XCTestCase {
         }
     }
 
-    func testLoadThrowsMalformedOnOldRtspsURLFormat() throws {
+    // Old single-URL configs have no "cameras" key — Codable ignores unknown keys,
+    // so they decode to cameras:[] and hit the empty-array guard.
+    func testLoadThrowsMalformedOnMissingCamerasKey() throws {
         let url = tmpDir.appendingPathComponent("old.json")
         try #"{ "rtspsURL": "rtsps://10.0.0.1:7441/abc?enableSrtp" }"#.data(using: .utf8)!.write(to: url)
         XCTAssertThrowsError(try AppConfigLoader.load(from: url)) { error in
