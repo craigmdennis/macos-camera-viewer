@@ -6,20 +6,30 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let onReconnect: () -> Void
     private let onToggleVisibility: () -> Void
     private let isWindowVisible: () -> Bool
+    private let cameras: () -> [CameraConfig]
+    private let selectedCameraName: () -> String?
+    private let onSelectCamera: (CameraConfig) -> Void
     private var cancellables = Set<AnyCancellable>()
     private var lastErrorItem: NSMenuItem?
     private var lastErrorAt: Date?
     private var showHideItem: NSMenuItem!
+    private var camerasSubmenuItem: NSMenuItem!
 
     init(
         statePublisher: AnyPublisher<CameraPlayer.State, Never>,
         onReconnect: @escaping () -> Void,
         onToggleVisibility: @escaping () -> Void,
-        isWindowVisible: @escaping () -> Bool
+        isWindowVisible: @escaping () -> Bool,
+        cameras: @escaping () -> [CameraConfig],
+        selectedCameraName: @escaping () -> String?,
+        onSelectCamera: @escaping (CameraConfig) -> Void
     ) {
         self.onReconnect = onReconnect
         self.onToggleVisibility = onToggleVisibility
         self.isWindowVisible = isWindowVisible
+        self.cameras = cameras
+        self.selectedCameraName = selectedCameraName
+        self.onSelectCamera = onSelectCamera
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -43,6 +53,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         showHideItem.target = self
         menu.addItem(showHideItem)
 
+        menu.addItem(.separator())
+
+        camerasSubmenuItem = NSMenuItem(title: "Cameras", action: nil, keyEquivalent: "")
+        camerasSubmenuItem.submenu = NSMenu(title: "Cameras")
+        menu.addItem(camerasSubmenuItem)
+
+        menu.addItem(.separator())
+
         let reveal = NSMenuItem(title: "Reveal Config in Finder", action: #selector(revealConfig), keyEquivalent: "")
         reveal.target = self
         menu.addItem(reveal)
@@ -58,6 +76,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         showHideItem.title = isWindowVisible() ? "Hide Camera" : "Show Camera"
+        rebuildCamerasSubmenu()
+    }
+
+    private func rebuildCamerasSubmenu() {
+        let submenu = camerasSubmenuItem.submenu!
+        submenu.removeAllItems()
+        let currentName = selectedCameraName()
+        for camera in cameras() {
+            let item = NSMenuItem(title: camera.name, action: #selector(selectCamera(_:)), keyEquivalent: "")
+            item.target = self
+            item.state = camera.name == currentName ? .on : .off
+            item.representedObject = camera
+            submenu.addItem(item)
+        }
     }
 
     private func handleState(_ state: CameraPlayer.State) {
@@ -82,7 +114,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func noteError(_ message: String) {
         let now = Date()
         if lastErrorAt == nil { lastErrorAt = now }
-        // Show "Last error: …" only after 30 s of continuous failure.
         guard let since = lastErrorAt, now.timeIntervalSince(since) >= 30 else { return }
         guard let menu = statusItem.menu else { return }
         let title = "Last error: \(message)"
@@ -98,8 +129,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func revealConfig() {
-        let url = AppConfigLoader.defaultFileURL
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        NSWorkspace.shared.activateFileViewerSelecting([AppConfigLoader.defaultFileURL])
     }
 
     @objc private func reconnect() {
@@ -108,5 +138,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func toggleVisibility() {
         onToggleVisibility()
+    }
+
+    @objc private func selectCamera(_ sender: NSMenuItem) {
+        guard let camera = sender.representedObject as? CameraConfig else { return }
+        onSelectCamera(camera)
     }
 }
