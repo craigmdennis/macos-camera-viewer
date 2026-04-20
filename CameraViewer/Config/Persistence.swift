@@ -11,6 +11,7 @@ struct Persistence {
     private enum Key {
         static let windowFrame = "windowFrame"
         static let isMuted = "isMuted"
+        static let selectedCameraName = "selectedCameraName"
     }
 
     func loadFrame() -> NSRect? {
@@ -29,5 +30,13 @@ struct Persistence {
 
     func saveMuted(_ muted: Bool) {
         defaults.set(muted, forKey: Key.isMuted)
+    }
+
+    func loadSelectedCameraName() -> String? {
+        defaults.string(forKey: Key.selectedCameraName)
+    }
+
+    func saveSelectedCameraName(_ name: String) {
+        defaults.set(name, forKey: Key.selectedCameraName)
     }
 }

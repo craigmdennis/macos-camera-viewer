@@ -41,4 +41,17 @@ final class PersistenceTests: XCTestCase {
         p.saveMuted(true)
         XCTAssertTrue(p.loadMuted())
     }
+
+    func testLoadSelectedCameraNameReturnsNilWhenUnset() {
+        let p = Persistence(defaults: defaults)
+        XCTAssertNil(p.loadSelectedCameraName())
+    }
+
+    func testRoundTripSelectedCameraName() {
+        let p = Persistence(defaults: defaults)
+        p.saveSelectedCameraName("Front Door")
+        XCTAssertEqual(p.loadSelectedCameraName(), "Front Door")
+        p.saveSelectedCameraName("Back Yard")
+        XCTAssertEqual(p.loadSelectedCameraName(), "Back Yard")
+    }
 }
