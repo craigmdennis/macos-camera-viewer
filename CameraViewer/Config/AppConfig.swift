@@ -1,7 +1,12 @@
 import Foundation
 
+struct CameraConfig: Codable, Equatable {
+    var name: String
+    var uri: URL
+}
+
 struct AppConfig: Codable, Equatable {
-    var rtspsURL: URL
+    var cameras: [CameraConfig]
 }
 
 enum AppConfigError: Error {
@@ -29,7 +34,16 @@ enum AppConfigLoader {
         }
         let data = try Data(contentsOf: url)
         do {
-            return try JSONDecoder().decode(AppConfig.self, from: data)
+            let config = try JSONDecoder().decode(AppConfig.self, from: data)
+            guard !config.cameras.isEmpty else {
+                throw AppConfigError.malformed(underlying: NSError(
+                    domain: "AppConfig", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "cameras array must not be empty"]
+                ))
+            }
+            return config
+        } catch let appErr as AppConfigError {
+            throw appErr
         } catch {
             throw AppConfigError.malformed(underlying: error)
         }
@@ -42,8 +56,11 @@ enum AppConfigLoader {
         )
         let stub = """
         {
-          "_comment": "Replace rtspsURL with your camera's RTSPS URL (Protect web UI → Settings → Advanced → RTSP).",
-          "rtspsURL": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID?enableSrtp"
+          "_comment": "Add your cameras below. Find RTSPS URLs in Protect web UI → Settings → Advanced → RTSP.",
+          "cameras": [
+            { "name": "Front Door", "uri": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID_1?enableSrtp" },
+            { "name": "Back Yard",  "uri": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID_2?enableSrtp" }
+          ]
         }
 
         """

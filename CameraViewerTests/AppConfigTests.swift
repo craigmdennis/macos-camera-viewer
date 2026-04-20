@@ -15,7 +15,9 @@ final class AppConfigTests: XCTestCase {
     }
 
     func testRoundTripEncodeDecode() throws {
-        let original = AppConfig(rtspsURL: URL(string: "rtsps://10.0.0.1:7441/abc?enableSrtp")!)
+        let original = AppConfig(cameras: [
+            CameraConfig(name: "Front Door", uri: URL(string: "rtsps://10.0.0.1:7441/abc?enableSrtp")!)
+        ])
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(AppConfig.self, from: data)
         XCTAssertEqual(decoded, original)
@@ -23,10 +25,17 @@ final class AppConfigTests: XCTestCase {
 
     func testDecodeIgnoresUnknownKeys() throws {
         let json = #"""
-        { "_comment": "hello", "rtspsURL": "rtsps://10.0.0.1:7441/abc?enableSrtp" }
+        {
+          "_comment": "hello",
+          "cameras": [
+            { "name": "Front Door", "uri": "rtsps://10.0.0.1:7441/abc?enableSrtp" }
+          ]
+        }
         """#.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(AppConfig.self, from: json)
-        XCTAssertEqual(decoded.rtspsURL.absoluteString, "rtsps://10.0.0.1:7441/abc?enableSrtp")
+        XCTAssertEqual(decoded.cameras.count, 1)
+        XCTAssertEqual(decoded.cameras[0].name, "Front Door")
+        XCTAssertEqual(decoded.cameras[0].uri.absoluteString, "rtsps://10.0.0.1:7441/abc?enableSrtp")
     }
 
     func testLoadThrowsFileNotFoundWhenMissing() {
@@ -48,6 +57,26 @@ final class AppConfigTests: XCTestCase {
         }
     }
 
+    func testLoadThrowsMalformedOnEmptyCamerasArray() throws {
+        let url = tmpDir.appendingPathComponent("empty.json")
+        try #"{ "cameras": [] }"#.data(using: .utf8)!.write(to: url)
+        XCTAssertThrowsError(try AppConfigLoader.load(from: url)) { error in
+            guard case AppConfigError.malformed = error else {
+                return XCTFail("expected malformed, got \(error)")
+            }
+        }
+    }
+
+    func testLoadThrowsMalformedOnOldRtspsURLFormat() throws {
+        let url = tmpDir.appendingPathComponent("old.json")
+        try #"{ "rtspsURL": "rtsps://10.0.0.1:7441/abc?enableSrtp" }"#.data(using: .utf8)!.write(to: url)
+        XCTAssertThrowsError(try AppConfigLoader.load(from: url)) { error in
+            guard case AppConfigError.malformed = error else {
+                return XCTFail("expected malformed, got \(error)")
+            }
+        }
+    }
+
     func testWriteStubCreatesDirectoryAndValidJSON() throws {
         let url = tmpDir
             .appendingPathComponent("sub", isDirectory: true)
@@ -55,6 +84,7 @@ final class AppConfigTests: XCTestCase {
         try AppConfigLoader.writeStub(to: url)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
         let reloaded = try AppConfigLoader.load(from: url)
-        XCTAssertEqual(reloaded.rtspsURL.scheme, "rtsps")
+        XCTAssertFalse(reloaded.cameras.isEmpty)
+        XCTAssertEqual(reloaded.cameras[0].uri.scheme, "rtsps")
     }
 }
