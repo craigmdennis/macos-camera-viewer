@@ -57,7 +57,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let reloadedConfig = (try? AppConfigLoader.load()) ?? AppConfig(cameras: self.loadedCameras)
                 self.loadedCameras = reloadedConfig.cameras
                 let currentName = self.activeCamera?.name
-                let target = reloadedConfig.cameras.first(where: { $0.name == currentName }) ?? reloadedConfig.cameras[0]
+                guard let target = reloadedConfig.cameras.first(where: { $0.name == currentName })
+                                    ?? reloadedConfig.cameras.first else {
+                    NSLog("Reconnect: camera list is empty, cannot reconnect")
+                    return
+                }
                 self.activeCamera = target
                 self.persistence.saveSelectedCameraName(target.name)
                 do {
