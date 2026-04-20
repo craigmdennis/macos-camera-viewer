@@ -48,15 +48,20 @@ Other `make` targets:
 
 ## Configuration
 
-On first launch the app writes a stub config to `~/Library/Application Support/CameraViewer/config.json` and opens it in TextEdit. Replace `rtspsURL` with your camera's RTSPS URL, save, and relaunch.
+On first launch the app writes a stub config to `~/Library/Application Support/CameraViewer/config.json` and opens it in TextEdit. Replace the placeholder URIs with your cameras' RTSPS URLs, save, and relaunch.
 
-Find your RTSPS URL in the Protect web UI → camera Settings → Advanced → RTSP. It looks like:
+Find your RTSPS URLs in the Protect web UI → camera Settings → Advanced → RTSP. The config supports multiple cameras:
 
 ```json
 {
-  "rtspsURL": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID?enableSrtp"
+  "cameras": [
+    { "name": "Front Door", "uri": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID_1?enableSrtp" },
+    { "name": "Back Yard",  "uri": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID_2?enableSrtp" }
+  ]
 }
 ```
+
+Select the active camera from the **Cameras** submenu in the menu-bar icon. The last selected camera is remembered across launches.
 
 A `config.example.json` is included in this repo as a reference.
 
