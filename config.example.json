@@ -1,4 +1,7 @@
 {
-  "_comment": "Copy this file to ~/Library/Application Support/CameraViewer/config.json and replace rtspsURL with your camera's RTSPS URL.",
-  "rtspsURL": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID?enableSrtp"
+  "_comment": "Copy this file to ~/Library/Application Support/CameraViewer/config.json and replace the placeholder URIs with your camera RTSPS URLs (Protect web UI → Settings → Advanced → RTSP).",
+  "cameras": [
+    { "name": "Front Door", "uri": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID_1?enableSrtp" },
+    { "name": "Back Yard",  "uri": "rtsps://10.0.0.1:7441/YOUR_CAMERA_ID_2?enableSrtp" }
+  ]
 }
