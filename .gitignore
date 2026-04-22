@@ -19,3 +19,6 @@ Frameworks/
 
 # Claude Code session files
 .claude/
+
+# Portfolio blog notes (local only)
+blog/
