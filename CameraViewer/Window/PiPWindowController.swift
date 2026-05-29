@@ -10,6 +10,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     private var streamURL: URL
     private let hoverView: HoverTrackingView
     private let playerDrawableView: NSView
+    private var zoomController: ZoomController!
     private var chromeHostingView: NSHostingView<ChromeOverlay>!
     private var reconnectPolicy = ReconnectPolicy()
     private var reconnectTimer: Timer?
@@ -46,7 +47,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         // VLC's CAOpenGLLayer attaches to the drawable's backing layer at play time,
         // landing on top of any existing subviews. Using a dedicated child view keeps
         // the chrome overlay as a sibling above the player.
-        let playerDrawableView = NSView(frame: NSRect(origin: .zero, size: initialFrame.size))
+        let playerDrawableView = DrawableView(frame: NSRect(origin: .zero, size: initialFrame.size))
         playerDrawableView.autoresizingMask = [.width, .height]
         playerDrawableView.wantsLayer = true
         self.playerDrawableView = playerDrawableView
@@ -55,6 +56,15 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
 
         super.init()
 
+        zoomController = ZoomController(view: playerDrawableView)
+        zoomController.onChange = { [weak self] scale, translation in
+            self?.persistence.saveZoom(scale: scale, translation: translation)
+        }
+        if let saved = persistence.loadZoom() {
+            zoomController.restore(scale: saved.scale, translation: saved.translation)
+        }
+        hoverView.zoomController = zoomController
+
         window.contentView = hoverView
         hoverView.addSubview(playerDrawableView)
         window.delegate = self
@@ -62,6 +72,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         installChrome()
         observeHover()
         observePlayerState()
+        observeZoom()
 
         // Defer the initial frame-set and order-front to the next runloop tick so we
         // don't trigger a layout pass from inside applicationDidFinishLaunching — that
@@ -71,6 +82,9 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
             guard let self else { return }
             self.window.setFrame(initialFrameCopy, display: true)
             self.window.makeKeyAndOrderFront(nil)
+            // Re-apply the restored zoom now the layer is laid out (init-time
+            // bounds may be zero, which throws off the anchor compensation).
+            self.zoomController.viewDidResize()
             self.player.play(url: self.streamURL)
         }
     }
@@ -128,6 +142,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
             isVisible: chromeVisible,
             isMuted: player.isMuted,
             isLoading: isLoading,
+            zoomScale: zoomController.scale,
             onClose: { [weak self] in self?.hideWindow() },
             onToggleMute: { [weak self] in self?.toggleMute() }
         )
@@ -148,6 +163,16 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         hoverView.isHovered
             .removeDuplicates()
             .sink { [weak self] hovered in self?.handleHover(hovered) }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Zoom
+
+    private func observeZoom() {
+        zoomController.$scale
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshChrome() }
             .store(in: &cancellables)
     }
 
@@ -235,6 +260,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         newFrame.origin.y = window.frame.maxY - targetHeight
         window.setFrame(newFrame, display: true, animate: true)
         persistence.saveFrame(newFrame)
+        zoomController.viewDidResize()
     }
 
     // MARK: - NSWindowDelegate
@@ -246,6 +272,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
 
     func windowDidEndLiveResize(_ notification: Notification) {
         persistence.saveFrame(window.frame)
+        zoomController.viewDidResize()
     }
 
     // Corner snap on drag-end. AppKit doesn't fire a discrete "drag ended" event

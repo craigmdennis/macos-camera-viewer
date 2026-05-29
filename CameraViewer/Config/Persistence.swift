@@ -12,6 +12,8 @@ struct Persistence {
         static let windowFrame = "windowFrame"
         static let isMuted = "isMuted"
         static let selectedCameraName = "selectedCameraName"
+        static let zoomScale = "zoomScale"
+        static let zoomTranslation = "zoomTranslation"
     }
 
     func loadFrame() -> NSRect? {
@@ -38,5 +40,17 @@ struct Persistence {
 
     func saveSelectedCameraName(_ name: String) {
         defaults.set(name, forKey: Key.selectedCameraName)
+    }
+
+    func loadZoom() -> (scale: CGFloat, translation: CGPoint)? {
+        guard defaults.object(forKey: Key.zoomScale) != nil else { return nil }
+        let scale = CGFloat(defaults.double(forKey: Key.zoomScale))
+        let translation = NSPointFromString(defaults.string(forKey: Key.zoomTranslation) ?? "")
+        return (scale, translation)
+    }
+
+    func saveZoom(scale: CGFloat, translation: CGPoint) {
+        defaults.set(Double(scale), forKey: Key.zoomScale)
+        defaults.set(NSStringFromPoint(translation), forKey: Key.zoomTranslation)
     }
 }

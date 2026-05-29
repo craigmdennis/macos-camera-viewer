@@ -54,4 +54,18 @@ final class PersistenceTests: XCTestCase {
         p.saveSelectedCameraName("Back Yard")
         XCTAssertEqual(p.loadSelectedCameraName(), "Back Yard")
     }
+
+    func testLoadZoomReturnsNilWhenUnset() {
+        let p = Persistence(defaults: defaults)
+        XCTAssertNil(p.loadZoom())
+    }
+
+    func testRoundTripZoom() {
+        let p = Persistence(defaults: defaults)
+        p.saveZoom(scale: 2.5, translation: CGPoint(x: -120, y: -80))
+        let loaded = p.loadZoom()
+        XCTAssertEqual(loaded?.scale ?? 0, 2.5, accuracy: 0.0001)
+        XCTAssertEqual(loaded?.translation.x ?? 0, -120, accuracy: 0.0001)
+        XCTAssertEqual(loaded?.translation.y ?? 0, -80, accuracy: 0.0001)
+    }
 }

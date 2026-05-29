@@ -4,6 +4,7 @@ struct ChromeOverlay: View {
     let isVisible: Bool
     let isMuted: Bool
     let isLoading: Bool
+    let zoomScale: CGFloat
     let onClose: () -> Void
     let onToggleMute: () -> Void
 
@@ -46,7 +47,35 @@ struct ChromeOverlay: View {
             .opacity(isVisible ? 1 : 0)
             .animation(.easeInOut(duration: isVisible ? 0.15 : 0.25), value: isVisible)
             .allowsHitTesting(isVisible)
+
+            VStack {
+                Spacer()
+                if zoomScale > 1.0 {
+                    ZoomBadge(scale: zoomScale)
+                        .padding(.bottom, 10)
+                }
+            }
+            // Fades with the rest of the chrome when the pointer leaves the window.
+            .opacity(isVisible ? 1 : 0)
+            .animation(.easeInOut(duration: isVisible ? 0.15 : 0.25), value: isVisible)
+            .allowsHitTesting(false)
         }
+    }
+}
+
+private struct ZoomBadge: View {
+    let scale: CGFloat
+
+    var body: some View {
+        Text(String(format: "%.1f×", scale))
+            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(
+                VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow)
+                    .clipShape(Capsule())
+            )
     }
 }
 
