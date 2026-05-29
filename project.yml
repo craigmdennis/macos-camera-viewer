@@ -18,8 +18,19 @@ targets:
     dependencies:
       - framework: Frameworks/VLCKit.xcframework
         embed: true
+    # Explicit shared scheme so `xcodebuild test` always has a test action;
+    # without this, regeneration leaves only a transient auto-created scheme.
+    scheme:
+      testTargets:
+        - CameraViewerTests
     settings:
       base:
+        # Source of truth for the app bundle name. Must live here (not just in the
+        # generated pbxproj) so `xcodegen generate` doesn't revert it to "CameraViewer".
+        PRODUCT_NAME: Camera Viewer
+        # Keep the Swift module name a clean identifier; PRODUCT_NAME's space
+        # would otherwise make it "Camera_Viewer" and break @testable import.
+        PRODUCT_MODULE_NAME: CameraViewer
         PRODUCT_BUNDLE_IDENTIFIER: com.craigmdennis.cameraviewer
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
@@ -31,6 +42,9 @@ targets:
         INFOPLIST_FILE: CameraViewer/Info.plist
         SWIFT_VERSION: "5.10"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
+        # VLCKit ships an arm64-only binary, so the app is arm64-only. Without this,
+        # a Release build (ONLY_ACTIVE_ARCH=NO) tries x86_64 and fails to link.
+        ARCHS: arm64
   CameraViewerTests:
     type: bundle.unit-test
     platform: macOS
@@ -44,3 +58,7 @@ targets:
         SWIFT_VERSION: "5.10"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         GENERATE_INFOPLIST_FILE: YES
+        # The app's PRODUCT_NAME has a space, so the auto-derived TEST_HOST
+        # (which uses the target name) points at the wrong bundle. Pin it.
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Camera Viewer.app/Contents/MacOS/Camera Viewer"
+        BUNDLE_LOADER: "$(TEST_HOST)"
