@@ -13,15 +13,19 @@
 		16B2973C39AD6A3B4584D3C0 /* ReconnectPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92ED7F182E0E54A81479380F /* ReconnectPolicy.swift */; };
 		1D7C8279E0015B12F3EEDA4E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BBB2BBB9AD6D33872FD6976 /* AppDelegate.swift */; };
 		1EDA5420FC3846DAFAE24EC6 /* go2rtc in Resources */ = {isa = PBXBuildFile; fileRef = E07A9ACA88158EBA89AEF681 /* go2rtc */; };
+		37F40CC396D219DCB4301C4D /* ZoomStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F325CE759D9FC77CB5611DCC /* ZoomStateTests.swift */; };
 		3C67F22CA8D612DDE8C0C588 /* CornerSnapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1918E8D1D7F078CC66CB41 /* CornerSnapTests.swift */; };
 		43C03957F637538C52D9CFC7 /* ChromeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F721F45FC975E5175AFEA9 /* ChromeOverlay.swift */; };
 		48485169E9AEDCFCBACED47F /* AppConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7BC88C2D36AEBDCC7DBC09 /* AppConfigTests.swift */; };
 		4D789DC4043252ABD4BAEF4E /* PiPWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E16F60DD86E99D7224658FE /* PiPWindowController.swift */; };
 		732180758EDBD25BAA30BE72 /* PiPWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231FF2CF8547982141B5009F /* PiPWindow.swift */; };
+		89DF01AD4FC6D3F071CA2D60 /* ZoomState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8ED767E710E725117091EE4 /* ZoomState.swift */; };
 		901AEAFD45DDAD6C75128320 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A12CBCE2B7C2978135F2ABB /* Persistence.swift */; };
 		90566FC23541497FABC5BC0C /* CameraPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63760CF6D9E38D506E5322F7 /* CameraPlayer.swift */; };
 		9264B865F13BB9EB5FD7A90A /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 077FF4065C7881FEAF936E07 /* AppIcon.icns */; };
+		999D76248F924D61C77451DC /* DrawableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40271464CF6C5F595B9BF980 /* DrawableView.swift */; };
 		9F48AA5D86ECFD06A1C74C72 /* VLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E7FDDE1704FE7748D956765 /* VLCKit.xcframework */; };
+		A865DDCF36869EF8A6DDED1D /* ZoomController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9638F257EF710A8A909E3DA /* ZoomController.swift */; };
 		A97CFB5FB12F9AAB823C3B68 /* VLCKit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 1E7FDDE1704FE7748D956765 /* VLCKit.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		AB229F4EE875241F12F3FA04 /* HoverTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C32975F832FAB507FF84621F /* HoverTrackingView.swift */; };
 		B811E962E13DED1086BD8A00 /* PersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2256D151D15DDF5C9B0E4C99 /* PersistenceTests.swift */; };
@@ -63,6 +67,7 @@
 		1E7FDDE1704FE7748D956765 /* VLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = VLCKit.xcframework; path = Frameworks/VLCKit.xcframework; sourceTree = "<group>"; };
 		2256D151D15DDF5C9B0E4C99 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
 		231FF2CF8547982141B5009F /* PiPWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiPWindow.swift; sourceTree = "<group>"; };
+		40271464CF6C5F595B9BF980 /* DrawableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawableView.swift; sourceTree = "<group>"; };
 		63760CF6D9E38D506E5322F7 /* CameraPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPlayer.swift; sourceTree = "<group>"; };
 		6942697349C33EEB1E926398 /* CameraViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CameraViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6D7BC88C2D36AEBDCC7DBC09 /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
@@ -75,9 +80,12 @@
 		C32975F832FAB507FF84621F /* HoverTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverTrackingView.swift; sourceTree = "<group>"; };
 		C6F35A7C41602665B83DC7D8 /* ReconnectPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconnectPolicyTests.swift; sourceTree = "<group>"; };
 		D5F93F4607CA4BAF7E85B684 /* CornerSnap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CornerSnap.swift; sourceTree = "<group>"; };
+		D9638F257EF710A8A909E3DA /* ZoomController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomController.swift; sourceTree = "<group>"; };
 		E07A9ACA88158EBA89AEF681 /* go2rtc */ = {isa = PBXFileReference; path = go2rtc; sourceTree = "<group>"; };
 		E75BCB754AAE466588733547 /* SmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTest.swift; sourceTree = "<group>"; };
 		ED058B93C81D79F826E3A8AE /* CameraViewerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewerApp.swift; sourceTree = "<group>"; };
+		F325CE759D9FC77CB5611DCC /* ZoomStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomStateTests.swift; sourceTree = "<group>"; };
+		F8ED767E710E725117091EE4 /* ZoomState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomState.swift; sourceTree = "<group>"; };
 		F9C4BCCB8978432A15E4B253 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -121,6 +129,7 @@
 				2256D151D15DDF5C9B0E4C99 /* PersistenceTests.swift */,
 				C6F35A7C41602665B83DC7D8 /* ReconnectPolicyTests.swift */,
 				E75BCB754AAE466588733547 /* SmokeTest.swift */,
+				F325CE759D9FC77CB5611DCC /* ZoomStateTests.swift */,
 			);
 			path = CameraViewerTests;
 			sourceTree = "<group>";
@@ -178,6 +187,7 @@
 			isa = PBXGroup;
 			children = (
 				D5F93F4607CA4BAF7E85B684 /* CornerSnap.swift */,
+				40271464CF6C5F595B9BF980 /* DrawableView.swift */,
 				231FF2CF8547982141B5009F /* PiPWindow.swift */,
 				0E16F60DD86E99D7224658FE /* PiPWindowController.swift */,
 			);
@@ -198,6 +208,8 @@
 				63760CF6D9E38D506E5322F7 /* CameraPlayer.swift */,
 				92ED7F182E0E54A81479380F /* ReconnectPolicy.swift */,
 				0EBB8B345E57385362B08ADE /* StreamProxy.swift */,
+				D9638F257EF710A8A909E3DA /* ZoomController.swift */,
+				F8ED767E710E725117091EE4 /* ZoomState.swift */,
 			);
 			path = Player;
 			sourceTree = "<group>";
@@ -299,6 +311,7 @@
 				B811E962E13DED1086BD8A00 /* PersistenceTests.swift in Sources */,
 				EF376A3758D1D81888C00B9F /* ReconnectPolicyTests.swift in Sources */,
 				C3570EE60AFAAA7AEEB304E5 /* SmokeTest.swift in Sources */,
+				37F40CC396D219DCB4301C4D /* ZoomStateTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -312,6 +325,7 @@
 				06D2FBB66AE723877CAA52E7 /* CameraViewerApp.swift in Sources */,
 				43C03957F637538C52D9CFC7 /* ChromeOverlay.swift in Sources */,
 				F8705AAC84F6D1FF505E0FF8 /* CornerSnap.swift in Sources */,
+				999D76248F924D61C77451DC /* DrawableView.swift in Sources */,
 				AB229F4EE875241F12F3FA04 /* HoverTrackingView.swift in Sources */,
 				901AEAFD45DDAD6C75128320 /* Persistence.swift in Sources */,
 				732180758EDBD25BAA30BE72 /* PiPWindow.swift in Sources */,
@@ -319,6 +333,8 @@
 				16B2973C39AD6A3B4584D3C0 /* ReconnectPolicy.swift in Sources */,
 				B9DCFD8A403F981B1C0B7CA4 /* StatusItemController.swift in Sources */,
 				0A7393E1209F755689CE3BF8 /* StreamProxy.swift in Sources */,
+				A865DDCF36869EF8A6DDED1D /* ZoomController.swift in Sources */,
+				89DF01AD4FC6D3F071CA2D60 /* ZoomState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -336,6 +352,7 @@
 		1CC131673A6F7A557245DDEF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = CameraViewer/CameraViewer.entitlements;
 				CODE_SIGN_IDENTITY = "-";
@@ -356,6 +373,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.craigmdennis.cameraviewer;
+				PRODUCT_MODULE_NAME = CameraViewer;
+				PRODUCT_NAME = "Camera Viewer";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
 			};
@@ -416,7 +435,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_NAME = "Camera Viewer";
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -427,6 +446,7 @@
 		A132E9F5FAC581B012C883FA /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = CameraViewer/CameraViewer.entitlements;
 				CODE_SIGN_IDENTITY = "-";
@@ -447,6 +467,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.craigmdennis.cameraviewer;
+				PRODUCT_MODULE_NAME = CameraViewer;
+				PRODUCT_NAME = "Camera Viewer";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
 			};
@@ -467,7 +489,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.craigmdennis.cameraviewer.tests;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CameraViewer.app/Contents/MacOS/CameraViewer";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Camera Viewer.app/Contents/MacOS/Camera Viewer";
 			};
 			name = Debug;
 		};
@@ -486,7 +508,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.craigmdennis.cameraviewer.tests;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CameraViewer.app/Contents/MacOS/CameraViewer";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Camera Viewer.app/Contents/MacOS/Camera Viewer";
 			};
 			name = Release;
 		};
@@ -538,7 +560,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "Camera Viewer";
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";

@@ -4,13 +4,18 @@ BUILD_DIR  := $(shell xcodebuild -scheme $(SCHEME) -configuration Release -showB
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_TO := /Applications/$(APP_NAME).app
 
-.PHONY: build install uninstall clean bootstrap
+.PHONY: build install uninstall clean release release-unsigned
 
-bootstrap:
-	scripts/bootstrap.sh
-
-build: bootstrap
+build:
 	xcodebuild -scheme $(SCHEME) -configuration Release build
+
+# Signed + notarized DMG. Requires DEVELOPER_ID, TEAM_ID, NOTARY_PROFILE (see scripts/release.sh).
+release:
+	scripts/release.sh
+
+# Build the DMG without signing/notarizing — for local inspection of the pipeline.
+release-unsigned:
+	SKIP_SIGNING=1 scripts/release.sh
 
 install: build
 	rm -rf "$(INSTALL_TO)"

@@ -12,6 +12,8 @@ struct Persistence {
         static let windowFrame = "windowFrame"
         static let isMuted = "isMuted"
         static let selectedCameraName = "selectedCameraName"
+        static let zoomScale = "zoomScale"
+        static let zoomTranslation = "zoomTranslation"
     }
 
     func loadFrame() -> NSRect? {
@@ -38,5 +40,20 @@ struct Persistence {
 
     func saveSelectedCameraName(_ name: String) {
         defaults.set(name, forKey: Key.selectedCameraName)
+    }
+
+    // Zoom/pan is persisted per camera (keyed by name) so each camera keeps its own
+    // framing. Pre-per-camera global keys are abandoned (zoom resets once, harmless).
+    func loadZoom(camera: String) -> (scale: CGFloat, translation: CGPoint)? {
+        let scaleKey = Key.zoomScale + "." + camera
+        guard defaults.object(forKey: scaleKey) != nil else { return nil }
+        let scale = CGFloat(defaults.double(forKey: scaleKey))
+        let translation = NSPointFromString(defaults.string(forKey: Key.zoomTranslation + "." + camera) ?? "")
+        return (scale, translation)
+    }
+
+    func saveZoom(camera: String, scale: CGFloat, translation: CGPoint) {
+        defaults.set(Double(scale), forKey: Key.zoomScale + "." + camera)
+        defaults.set(NSStringFromPoint(translation), forKey: Key.zoomTranslation + "." + camera)
     }
 }

@@ -3,6 +3,8 @@
 
 # Xcode
 build/
+build-release/
+dist/
 DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
@@ -19,3 +21,7 @@ Frameworks/
 
 # Claude Code session files
 .claude/
+.superpowers/
+
+# Portfolio blog notes (local only)
+blog/

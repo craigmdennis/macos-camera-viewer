@@ -54,4 +54,25 @@ final class PersistenceTests: XCTestCase {
         p.saveSelectedCameraName("Back Yard")
         XCTAssertEqual(p.loadSelectedCameraName(), "Back Yard")
     }
+
+    func testLoadZoomReturnsNilWhenUnset() {
+        let p = Persistence(defaults: defaults)
+        XCTAssertNil(p.loadZoom(camera: "Front Door"))
+    }
+
+    func testRoundTripZoomPerCamera() {
+        let p = Persistence(defaults: defaults)
+        p.saveZoom(camera: "Front Door", scale: 2.5, translation: CGPoint(x: -120, y: -80))
+        let loaded = p.loadZoom(camera: "Front Door")
+        XCTAssertEqual(loaded?.scale ?? 0, 2.5, accuracy: 0.0001)
+        XCTAssertEqual(loaded?.translation.x ?? 0, -120, accuracy: 0.0001)
+        XCTAssertEqual(loaded?.translation.y ?? 0, -80, accuracy: 0.0001)
+    }
+
+    func testZoomIsolatedBetweenCameras() {
+        let p = Persistence(defaults: defaults)
+        p.saveZoom(camera: "A", scale: 2.0, translation: CGPoint(x: -5, y: -5))
+        XCTAssertNil(p.loadZoom(camera: "B"))
+        XCTAssertEqual(p.loadZoom(camera: "A")?.scale ?? 0, 2.0, accuracy: 0.0001)
+    }
 }
