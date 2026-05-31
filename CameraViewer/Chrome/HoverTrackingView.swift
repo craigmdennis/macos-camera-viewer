@@ -15,6 +15,12 @@ final class HoverTrackingView: NSView {
 
     private let longPressDuration: TimeInterval = 0.35
 
+    // Space-to-pan: tracked via a local key monitor (the borderless window's responder
+    // chain makes keyDown unreliable otherwise). True while the space bar is held.
+    private var spaceHeld = false
+    private var keyMonitor: Any?
+    private static let spaceKeyCode: UInt16 = 49
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let existing = trackingArea {
@@ -38,7 +44,29 @@ final class HoverTrackingView: NSView {
         isHovered.send(false)
     }
 
-    // MARK: - Drag: window-move by default, video-pan after a long press
+    // MARK: - Space key tracking
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil, keyMonitor == nil {
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+                guard let self, event.keyCode == Self.spaceKeyCode else { return event }
+                self.spaceHeld = (event.type == .keyDown)
+                // Don't swallow — a focused text field still needs the space key.
+                return event
+            }
+        } else if window == nil, let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+            spaceHeld = false
+        }
+    }
+
+    deinit {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+    }
+
+    // MARK: - Drag: window-move by default, video-pan via long-press / space / middle button
 
     // We move the window manually, so keep AppKit from also moving it.
     override var mouseDownCanMoveWindow: Bool { false }
@@ -53,10 +81,13 @@ final class HoverTrackingView: NSView {
         dragOrigin = event.locationInWindow
         windowDragStart = (NSEvent.mouseLocation, window?.frame.origin ?? .zero)
 
-        // Only when zoomed does holding still arm video-pan mode; otherwise the
-        // drag just moves the window. The timer must run in event-tracking mode
-        // so it fires while the button is held.
-        if zoomController?.isZoomed == true {
+        guard zoomController?.isZoomed == true else { return }
+
+        // Space held → pan immediately. Otherwise a long press arms pan mode; until then
+        // the drag moves the window. The timer runs in .common so it fires while held.
+        if spaceHeld {
+            beginPanMode()
+        } else {
             let timer = Timer(timeInterval: longPressDuration, repeats: false) { [weak self] _ in
                 self?.beginPanMode()
             }
@@ -67,16 +98,10 @@ final class HoverTrackingView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         if isPanning {
-            guard let origin = dragOrigin else { return }
-            // Grab-style 1:1 pan; layer transform space is y-down so invert y.
-            let location = event.locationInWindow
-            let delta = CGPoint(x: location.x - origin.x, y: origin.y - location.y)
-            zoomController?.handlePanDelta(delta)
-            dragOrigin = location
-            NSCursor.closedHand.set()
+            applyPan(to: event.locationInWindow)
             return
         }
-        // A drag before the long press fires means "move the window".
+        // A drag before pan mode arms means "move the window".
         cancelLongPress()
         guard let start = windowDragStart else { return }
         let now = NSEvent.mouseLocation
@@ -85,19 +110,50 @@ final class HoverTrackingView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        cancelLongPress()
-        dragOrigin = nil
-        windowDragStart = nil
-        isPanning = false
-        NSCursor.arrow.set()
-        super.mouseUp(with: event)
+        endGesture()
     }
+
+    // MARK: - Middle button: pan immediately when zoomed
+
+    override func otherMouseDown(with event: NSEvent) {
+        guard event.buttonNumber == 2, zoomController?.isZoomed == true else {
+            super.otherMouseDown(with: event); return
+        }
+        dragOrigin = event.locationInWindow
+        beginPanMode()
+    }
+
+    override func otherMouseDragged(with event: NSEvent) {
+        if isPanning { applyPan(to: event.locationInWindow) } else { super.otherMouseDragged(with: event) }
+    }
+
+    override func otherMouseUp(with event: NSEvent) {
+        if isPanning { endGesture() } else { super.otherMouseUp(with: event) }
+    }
+
+    // MARK: - Pan helpers
 
     private func beginPanMode() {
         cancelLongPress()
         guard zoomController?.isZoomed == true, dragOrigin != nil else { return }
         isPanning = true
-        NSCursor.openHand.set()
+        NSCursor.closedHand.set()
+    }
+
+    /// Grab-style 1:1 pan. Layer transform space is y-down, so invert y.
+    private func applyPan(to location: NSPoint) {
+        guard let origin = dragOrigin else { return }
+        zoomController?.handlePanDelta(CGPoint(x: location.x - origin.x, y: origin.y - location.y))
+        dragOrigin = location
+        NSCursor.closedHand.set()
+    }
+
+    private func endGesture() {
+        cancelLongPress()
+        dragOrigin = nil
+        windowDragStart = nil
+        isPanning = false
+        NSCursor.arrow.set()
     }
 
     private func cancelLongPress() {
