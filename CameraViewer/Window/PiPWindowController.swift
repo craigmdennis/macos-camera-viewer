@@ -101,10 +101,23 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     func updateStreamURL(_ url: URL) {
         streamURL = url
         reconnectPolicy.reset()
+        // Hide the video layer across the switch so the outgoing camera's last frame is
+        // never shown re-zoomed to the incoming camera's level (the source of the flash).
+        // Revealed again on the new camera's first decoded frame (.playing).
+        setVideoHidden(true)
         player.stop()
         player.play(url: url)
-        // Switching cameras: apply the new camera's saved zoom (or reset to 1×).
+        // Apply the new camera's saved zoom (or reset to 1×) while hidden.
         restoreZoomForCurrentCamera()
+    }
+
+    /// Instantly show/hide the video layer (no implicit fade). Opacity, not `isHidden`,
+    /// so the display layer keeps decoding/enqueuing while hidden.
+    private func setVideoHidden(_ hidden: Bool) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        playerDrawableView.displayLayer.opacity = hidden ? 0 : 1
+        CATransaction.commit()
     }
 
     /// Apply the persisted zoom/pan for the currently-selected camera, or reset to 1× if
@@ -239,6 +252,11 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
             reconnectPolicy.reset()
             reconnectTimer?.invalidate()
             isLoading = false
+            // The first frame's layout pass resets the backing layer's transform to
+            // identity, so re-assert this camera's zoom NOW (post-reset) and only then
+            // reveal — otherwise the new feed flashes at 1× before the zoom snaps in.
+            restoreZoomForCurrentCamera()
+            setVideoHidden(false)
             refreshChrome()
             scheduleVideoSizeLock()
         case .error:
