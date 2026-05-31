@@ -9,20 +9,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let cameras: () -> [CameraConfig]
     private let selectedCameraName: () -> String?
     private let onSelectCamera: (CameraConfig) -> Void
+    private let onOpenSettings: () -> Void
     private var cancellables = Set<AnyCancellable>()
-    private var lastErrorItem: NSMenuItem?
-    private var lastErrorAt: Date?
+    private var statusLineItem: NSMenuItem!
+    private var currentState: NativeCameraPlayer.State = .idle
     private var showHideItem: NSMenuItem!
     private var camerasSubmenuItem: NSMenuItem!
 
     init(
-        statePublisher: AnyPublisher<CameraPlayer.State, Never>,
+        statePublisher: AnyPublisher<NativeCameraPlayer.State, Never>,
         onReconnect: @escaping () -> Void,
         onToggleVisibility: @escaping () -> Void,
         isWindowVisible: @escaping () -> Bool,
         cameras: @escaping () -> [CameraConfig],
         selectedCameraName: @escaping () -> String?,
-        onSelectCamera: @escaping (CameraConfig) -> Void
+        onSelectCamera: @escaping (CameraConfig) -> Void,
+        onOpenSettings: @escaping () -> Void
     ) {
         self.onReconnect = onReconnect
         self.onToggleVisibility = onToggleVisibility
@@ -30,6 +32,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.cameras = cameras
         self.selectedCameraName = selectedCameraName
         self.onSelectCamera = onSelectCamera
+        self.onOpenSettings = onOpenSettings
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -49,6 +52,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
+        // Live status line: always reflects the player's current state, including the
+        // exact failure reason when a stream can't connect.
+        statusLineItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        statusLineItem.isEnabled = false
+        menu.addItem(statusLineItem)
+        menu.addItem(.separator())
+
         showHideItem = NSMenuItem(title: "Hide Camera", action: #selector(toggleVisibility), keyEquivalent: "")
         showHideItem.target = self
         menu.addItem(showHideItem)
@@ -61,9 +71,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let reveal = NSMenuItem(title: "Reveal Config in Finder", action: #selector(revealConfig), keyEquivalent: "")
-        reveal.target = self
-        menu.addItem(reveal)
+        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settings.target = self
+        menu.addItem(settings)
 
         let reconnectItem = NSMenuItem(title: "Reconnect", action: #selector(reconnect), keyEquivalent: "")
         reconnectItem.target = self
@@ -76,7 +86,18 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         showHideItem.title = isWindowVisible() ? "Hide Camera" : "Show Camera"
+        statusLineItem.title = statusDescription(currentState)
         rebuildCamerasSubmenu()
+    }
+
+    private func statusDescription(_ state: NativeCameraPlayer.State) -> String {
+        switch state {
+        case .idle:      return "Idle"
+        case .opening:   return "Connecting…"
+        case .buffering: return "Buffering…"
+        case .playing:   return "● Playing"
+        case .error(let message): return "⚠ \(message)"
+        }
     }
 
     private func rebuildCamerasSubmenu() {
@@ -92,44 +113,24 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func handleState(_ state: CameraPlayer.State) {
+    private func handleState(_ state: NativeCameraPlayer.State) {
+        currentState = state
+        // Keep the menu-bar glyph in sync; the live status line (refreshed on open)
+        // carries the detail, including the failure message.
+        let symbol: String
         switch state {
-        case .playing:
-            statusItem.button?.image = NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Playing")
-            statusItem.button?.image?.isTemplate = true
-            lastErrorAt = nil
-            if let item = lastErrorItem {
-                statusItem.menu?.removeItem(item)
-                lastErrorItem = nil
-            }
-        case .error(let message):
-            statusItem.button?.image = NSImage(systemSymbolName: "video.slash.fill", accessibilityDescription: "Error")
-            statusItem.button?.image?.isTemplate = true
-            noteError(message)
-        case .idle, .opening, .buffering:
-            break
+        case .playing:                  symbol = "video.fill"
+        case .error:                    symbol = "video.slash.fill"
+        case .idle, .opening, .buffering: symbol = "video.fill"
         }
+        statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: statusDescription(state))
+        statusItem.button?.image?.isTemplate = true
+        // If the menu is already open, update the line immediately.
+        statusLineItem?.title = statusDescription(state)
     }
 
-    private func noteError(_ message: String) {
-        let now = Date()
-        if lastErrorAt == nil { lastErrorAt = now }
-        guard let since = lastErrorAt, now.timeIntervalSince(since) >= 30 else { return }
-        guard let menu = statusItem.menu else { return }
-        let title = "Last error: \(message)"
-        if let item = lastErrorItem {
-            item.title = title
-        } else {
-            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.insertItem(item, at: 0)
-            menu.insertItem(.separator(), at: 1)
-            lastErrorItem = item
-        }
-    }
-
-    @objc private func revealConfig() {
-        NSWorkspace.shared.activateFileViewerSelecting([AppConfigLoader.defaultFileURL])
+    @objc private func openSettings() {
+        onOpenSettings()
     }
 
     @objc private func reconnect() {

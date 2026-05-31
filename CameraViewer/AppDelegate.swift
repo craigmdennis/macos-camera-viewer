@@ -4,10 +4,12 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: PiPWindowController?
     private var statusItemController: StatusItemController?
-    private let streamProxy = StreamProxy()
+    private var settingsWindowController: SettingsWindowController?
+    private var store: CameraStore!
     private var activeCamera: CameraConfig?
-    private var loadedCameras: [CameraConfig] = []
     private let persistence = Persistence()
+
+    private var loadedCameras: [CameraConfig] { store?.cameras ?? [] }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -15,11 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let config: AppConfig
         do {
             config = try AppConfigLoader.load()
-        } catch AppConfigError.fileNotFound(let path) {
-            try? AppConfigLoader.writeStub(to: path)
-            presentFirstLaunchAlert(path: path)
-            openConfigInTextEdit(path)
-            NSApp.terminate(nil)
+        } catch AppConfigError.fileNotFound {
+            // No config yet → onboarding owns first launch (build the store empty).
+            store = CameraStore(cameras: [])
+            startOnboarding()
             return
         } catch AppConfigError.malformed(let underlying) {
             presentMalformedAlert(underlying: underlying)
@@ -31,22 +32,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        loadedCameras = config.cameras
+        store = CameraStore(cameras: config.cameras)
+        store.onChange = { [weak self] cameras in self?.handleCameraListChange(cameras) }
 
         let savedName = persistence.loadSelectedCameraName()
         let camera = config.cameras.first(where: { $0.name == savedName }) ?? config.cameras[0]
         activeCamera = camera
         persistence.saveSelectedCameraName(camera.name)
 
-        do {
-            try streamProxy.start(upstream: camera.uri)
-        } catch {
-            presentProxyFailureAlert(underlying: error)
-            NSApp.terminate(nil)
-            return
-        }
+        startViewer(initial: camera)
+    }
 
-        let controller = PiPWindowController(streamURL: StreamProxy.localURL, persistence: persistence)
+    private func startViewer(initial camera: CameraConfig) {
+        let controller = PiPWindowController(streamURL: camera.uri, persistence: persistence)
         controller.installDragEndSnap()
         windowController = controller
 
@@ -54,81 +52,86 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statePublisher: controller.playerStatePublisher,
             onReconnect: { [weak self, weak controller] in
                 guard let self, let controller else { return }
-                let reloadedConfig = (try? AppConfigLoader.load()) ?? AppConfig(cameras: self.loadedCameras)
-                self.loadedCameras = reloadedConfig.cameras
+                let reloaded = (try? AppConfigLoader.load()) ?? AppConfig(cameras: self.loadedCameras)
+                self.store.replaceAll(reloaded.cameras)
                 let currentName = self.activeCamera?.name
-                guard let target = reloadedConfig.cameras.first(where: { $0.name == currentName })
-                                    ?? reloadedConfig.cameras.first else {
-                    NSLog("Reconnect: camera list is empty, cannot reconnect")
-                    return
-                }
+                guard let target = reloaded.cameras.first(where: { $0.name == currentName })
+                                    ?? reloaded.cameras.first else { return }
                 self.activeCamera = target
                 self.persistence.saveSelectedCameraName(target.name)
-                do {
-                    try self.streamProxy.start(upstream: target.uri)
-                } catch {
-                    NSLog("Reconnect: proxy restart failed: %@", String(describing: error))
-                }
-                controller.updateStreamURL(StreamProxy.localURL)
+                controller.updateStreamURL(target.uri)
             },
             onToggleVisibility: { [weak controller] in
                 guard let controller else { return }
-                if controller.isWindowVisible {
-                    controller.hideWindow()
-                } else {
-                    controller.showWindow()
-                }
+                controller.isWindowVisible ? controller.hideWindow() : controller.showWindow()
             },
-            isWindowVisible: { [weak controller] in
-                controller?.isWindowVisible ?? false
-            },
-            cameras: { [weak self] in
-                self?.loadedCameras ?? []
-            },
-            selectedCameraName: { [weak self] in
-                self?.activeCamera?.name
-            },
-            onSelectCamera: { [weak self, weak controller] camera in
-                guard let self, let controller else { return }
-                self.activeCamera = camera
-                self.persistence.saveSelectedCameraName(camera.name)
-                do {
-                    try self.streamProxy.start(upstream: camera.uri)
-                } catch {
-                    NSLog("Camera switch: proxy restart failed: %@", String(describing: error))
-                }
-                controller.updateStreamURL(StreamProxy.localURL)
+            isWindowVisible: { [weak controller] in controller?.isWindowVisible ?? false },
+            cameras: { [weak self] in self?.loadedCameras ?? [] },
+            selectedCameraName: { [weak self] in self?.activeCamera?.name },
+            onSelectCamera: { [weak self] camera in self?.selectCamera(camera) },
+            onOpenSettings: { [weak self] in self?.openSettings() }
+        )
+
+        // Feed the in-viewer picker the same camera data + switch path as the menu bar.
+        controller.cameras = { [weak self] in self?.loadedCameras ?? [] }
+        controller.selectedCameraName = { [weak self] in self?.activeCamera?.name }
+        controller.onSelectCamera = { [weak self] camera in self?.selectCamera(camera) }
+    }
+
+    // MARK: - Camera selection / list changes
+
+    /// Single switch path shared by menu-bar submenu and in-viewer picker.
+    private func selectCamera(_ camera: CameraConfig) {
+        guard camera.name != activeCamera?.name else { return }
+        activeCamera = camera
+        persistence.saveSelectedCameraName(camera.name)
+        windowController?.updateStreamURL(camera.uri)
+        windowController?.refreshChromeForCameraChange()
+    }
+
+    /// Live-on-save reaction from the Settings UI: refresh menu/picker and, if the active
+    /// camera's URL changed or it was removed, restart the stream.
+    private func handleCameraListChange(_ cameras: [CameraConfig]) {
+        if windowController == nil, let first = cameras.first {
+            // First camera added during onboarding → start the viewer now.
+            activeCamera = first
+            persistence.saveSelectedCameraName(first.name)
+            startViewer(initial: first)
+            return
+        }
+
+        let activeName = activeCamera?.name
+        if let stillThere = cameras.first(where: { $0.name == activeName }) {
+            if stillThere.uri != activeCamera?.uri {       // URL edited under us
+                activeCamera = stillThere
+                windowController?.updateStreamURL(stillThere.uri)
             }
-        )
+        } else if let fallback = cameras.first {           // active camera removed
+            selectCamera(fallback)
+        }
+        windowController?.refreshChromeForCameraChange()
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        streamProxy.stop()
+    // MARK: - Settings / onboarding
+
+    @objc private func openSettings() {
+        if settingsWindowController == nil {
+            settingsWindowController = SettingsWindowController(store: store)
+        }
+        settingsWindowController?.show()
     }
 
-    private func openConfigInTextEdit(_ path: URL) {
-        let textEdit = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
-        NSWorkspace.shared.open(
-            [path],
-            withApplicationAt: textEdit,
-            configuration: NSWorkspace.OpenConfiguration()
-        )
+    private func startOnboarding() {
+        store.onChange = { [weak self] cameras in self?.handleCameraListChange(cameras) }
+        let controller = OnboardingWindowController(store: store)
+        settingsWindowController = nil
+        onboardingWindowController = controller
+        controller.show()
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    private var onboardingWindowController: OnboardingWindowController?
 
-    private func presentFirstLaunchAlert(path: URL) {
-        let alert = NSAlert()
-        alert.messageText = "Camera Viewer needs a camera URL."
-        alert.informativeText = """
-        A template config file has been created at:
-        \(path.path)
-
-        Open it, replace the placeholder RTSPS URLs with your camera URLs (Protect web UI → Settings → Advanced → RTSP), save, and launch Camera Viewer again.
-        """
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     private func presentMalformedAlert(underlying: Error) {
         let alert = NSAlert()
@@ -138,17 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Path: \(AppConfigLoader.defaultFileURL.path)
 
-        The config format has changed. Expected:
+        Expected format:
         { "cameras": [{ "name": "…", "uri": "rtsps://…" }] }
         """
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
-    private func presentProxyFailureAlert(underlying: Error) {
-        let alert = NSAlert()
-        alert.messageText = "Camera Viewer could not start its stream proxy."
-        alert.informativeText = "Details: \(String(describing: underlying))"
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }

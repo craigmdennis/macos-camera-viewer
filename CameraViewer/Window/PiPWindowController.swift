@@ -4,12 +4,12 @@ import SwiftUI
 
 final class PiPWindowController: NSObject, NSWindowDelegate {
     let window: PiPWindow
-    let player: CameraPlayer
+    let player: NativeCameraPlayer
 
     private let persistence: Persistence
     private var streamURL: URL
     private let hoverView: HoverTrackingView
-    private let playerDrawableView: NSView
+    private let playerDrawableView: SampleBufferView
     private var zoomController: ZoomController!
     private var chromeHostingView: NSHostingView<ChromeOverlay>!
     private var reconnectPolicy = ReconnectPolicy()
@@ -22,9 +22,19 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     private var videoSizeTimer: Timer?
 
     // Exposed so StatusItemController can observe state.
-    var playerStatePublisher: AnyPublisher<CameraPlayer.State, Never> {
+    var playerStatePublisher: AnyPublisher<NativeCameraPlayer.State, Never> {
         player.$state.eraseToAnyPublisher()
     }
+
+    // Camera list/selection for the in-viewer picker. Injected by AppDelegate, which owns
+    // the camera list and the switch path (persist selection + restart stream). Defaults
+    // are empty so the controller works standalone (e.g. in tests).
+    var cameras: () -> [CameraConfig] = { [] }
+    var selectedCameraName: () -> String? = { nil }
+    var onSelectCamera: (CameraConfig) -> Void = { _ in }
+
+    // Called by AppDelegate after a camera switch so the picker label refreshes.
+    func refreshChromeForCameraChange() { refreshChrome() }
 
     init(streamURL: URL, persistence: Persistence = Persistence()) {
         self.streamURL = streamURL
@@ -44,25 +54,24 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         hoverView.layer?.masksToBounds = true
         self.hoverView = hoverView
 
-        // VLC's CAOpenGLLayer attaches to the drawable's backing layer at play time,
-        // landing on top of any existing subviews. Using a dedicated child view keeps
-        // the chrome overlay as a sibling above the player.
-        let playerDrawableView = DrawableView(frame: NSRect(origin: .zero, size: initialFrame.size))
+        // The display layer renders into this view's backing layer. A dedicated child
+        // view keeps the chrome overlay as a sibling above the player, and its
+        // input-transparent hitTest keeps HoverTrackingView the event target.
+        let playerDrawableView = SampleBufferView(frame: NSRect(origin: .zero, size: initialFrame.size))
         playerDrawableView.autoresizingMask = [.width, .height]
-        playerDrawableView.wantsLayer = true
         self.playerDrawableView = playerDrawableView
 
-        self.player = CameraPlayer(drawable: playerDrawableView, initiallyMuted: persistence.loadMuted())
+        self.player = NativeCameraPlayer(view: playerDrawableView, initiallyMuted: persistence.loadMuted())
 
         super.init()
 
         zoomController = ZoomController(view: playerDrawableView)
         zoomController.onChange = { [weak self] scale, translation in
-            self?.persistence.saveZoom(scale: scale, translation: translation)
+            guard let self, let name = self.selectedCameraName() else { return }
+            self.persistence.saveZoom(camera: name, scale: scale, translation: translation)
         }
-        if let saved = persistence.loadZoom() {
-            zoomController.restore(scale: saved.scale, translation: saved.translation)
-        }
+        // Initial restore is deferred to the makeKeyAndOrderFront block below, after the
+        // layer is laid out AND AppDelegate has wired `selectedCameraName`.
         hoverView.zoomController = zoomController
 
         window.contentView = hoverView
@@ -82,9 +91,9 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
             guard let self else { return }
             self.window.setFrame(initialFrameCopy, display: true)
             self.window.makeKeyAndOrderFront(nil)
-            // Re-apply the restored zoom now the layer is laid out (init-time
+            // Apply this camera's saved zoom now the layer is laid out (init-time
             // bounds may be zero, which throws off the anchor compensation).
-            self.zoomController.viewDidResize()
+            self.restoreZoomForCurrentCamera()
             self.player.play(url: self.streamURL)
         }
     }
@@ -94,6 +103,19 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         reconnectPolicy.reset()
         player.stop()
         player.play(url: url)
+        // Switching cameras: apply the new camera's saved zoom (or reset to 1×).
+        restoreZoomForCurrentCamera()
+    }
+
+    /// Apply the persisted zoom/pan for the currently-selected camera, or reset to 1× if
+    /// none is saved. Re-clamps to current window geometry.
+    private func restoreZoomForCurrentCamera() {
+        guard let name = selectedCameraName() else { zoomController.viewDidResize(); return }
+        if let saved = persistence.loadZoom(camera: name) {
+            zoomController.restore(scale: saved.scale, translation: saved.translation)
+        } else {
+            zoomController.reset()
+        }
     }
 
     deinit {
@@ -143,8 +165,11 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
             isMuted: player.isMuted,
             isLoading: isLoading,
             zoomScale: zoomController.scale,
+            cameras: cameras(),
+            selectedCameraName: selectedCameraName(),
             onClose: { [weak self] in self?.hideWindow() },
-            onToggleMute: { [weak self] in self?.toggleMute() }
+            onToggleMute: { [weak self] in self?.toggleMute() },
+            onSelectCamera: { [weak self] camera in self?.onSelectCamera(camera) }
         )
     }
 
@@ -207,8 +232,8 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
             .store(in: &cancellables)
     }
 
-    private func handlePlayerState(_ state: CameraPlayer.State) {
-        NSLog("PiPWindowController: player state → %@", String(describing: state))
+    private func handlePlayerState(_ state: NativeCameraPlayer.State) {
+        AppLog.rtsp.debug("PiPWindowController player state: \(String(describing: state), privacy: .public)")
         switch state {
         case .playing:
             reconnectPolicy.reset()

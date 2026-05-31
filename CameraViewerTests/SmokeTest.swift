@@ -1,7 +1,10 @@
 import XCTest
+@testable import CameraViewer
 
 final class SmokeTest: XCTestCase {
-    func testBuilds() {
-        XCTAssertTrue(true)
+    // Touches the app module so the test target links.
+    func testModuleLinks() {
+        XCTAssertNotNil(NativeCameraPlayer.self)
+        XCTAssertNotNil(RTSPClient.self)
     }
 }
