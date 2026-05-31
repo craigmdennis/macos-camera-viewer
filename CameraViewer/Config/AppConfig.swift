@@ -49,6 +49,19 @@ enum AppConfigLoader {
         }
     }
 
+    /// Write the camera list back to disk as clean `{ "cameras": [{ "name", "uri" }] }`
+    /// JSON, preserving the on-disk format (no stub `_comment`). Creates intermediate
+    /// directories. Used by the Settings UI's live-on-save flow.
+    static func save(_ config: AppConfig, to url: URL = defaultFileURL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes, .sortedKeys]
+        try encoder.encode(config).write(to: url, options: .atomic)
+    }
+
     static func writeStub(to url: URL = defaultFileURL) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
