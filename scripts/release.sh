@@ -33,6 +33,9 @@ echo "    built: $APP"
 
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
 DMG="$DIST/$APP_NAME $VERSION.dmg"
+# Version-less, space-less copy so the GitHub "latest" direct link stays stable across releases:
+#   https://github.com/craigmdennis/macos-camera-viewer/releases/latest/download/CameraViewer.dmg
+STABLE_DMG="$DIST/CameraViewer.dmg"
 mkdir -p "$DIST"
 
 if [[ "${SKIP_SIGNING:-0}" == "1" ]]; then
@@ -66,11 +69,15 @@ cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 rm -rf "$STAGE"
+cp "$DMG" "$STABLE_DMG"
 
 if [[ "${SKIP_SIGNING:-0}" != "1" ]]; then
-  codesign --force --sign "$DEVELOPER_ID" "$DMG"
-  xcrun stapler staple "$DMG"        # staple the DMG too, so first-open works offline
+  for d in "$DMG" "$STABLE_DMG"; do
+    codesign --force --sign "$DEVELOPER_ID" "$d"
+    xcrun stapler staple "$d"        # staple each DMG so first-open works offline
+  done
 fi
 
 echo "==> Done: $DMG"
-echo "    Upload to GitHub Releases:  gh release create v$VERSION \"$DMG\" --title \"v$VERSION\" --generate-notes"
+echo "         $STABLE_DMG"
+echo "    Upload to GitHub Releases:  gh release create v$VERSION \"$DMG\" \"$STABLE_DMG\" --title \"v$VERSION\" --generate-notes"
