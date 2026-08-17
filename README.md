@@ -11,6 +11,13 @@ A single-window macOS app that displays a local Unifi Protect RTSPS camera feed 
 
 ## Install
 
+Lauch those commands in the root folder:
+
+```sh
+xcodegen
+```
+This generate CameraViewer.xcodeproj file.
+
 ```sh
 make install
 ```
