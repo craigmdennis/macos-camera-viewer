@@ -7,6 +7,11 @@ final class HoverTrackingView: NSView {
     // Set by PiPWindowController after construction.
     var zoomController: ZoomController?
 
+    // Fired on a plain click (no drag, no pan) — used in multi-stream layouts to jump to
+    // single view on the tapped tile. Point is in window base coordinates.
+    var onClick: ((NSPoint) -> Void)?
+    private var hadDragMovement = false
+
     private var trackingArea: NSTrackingArea?
     private var dragOrigin: NSPoint?              // pan reference, in window coords
     private var windowDragStart: (mouse: NSPoint, origin: NSPoint)?
@@ -72,6 +77,7 @@ final class HoverTrackingView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 
     override func mouseDown(with event: NSEvent) {
+        hadDragMovement = false
         if event.clickCount == 2 {
             cancelLongPress()
             zoomController?.reset()
@@ -97,6 +103,7 @@ final class HoverTrackingView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        hadDragMovement = true
         if isPanning {
             applyPan(to: event.locationInWindow)
             return
@@ -110,6 +117,9 @@ final class HoverTrackingView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if event.clickCount == 1, !hadDragMovement, !isPanning {
+            onClick?(event.locationInWindow)
+        }
         endGesture()
     }
 

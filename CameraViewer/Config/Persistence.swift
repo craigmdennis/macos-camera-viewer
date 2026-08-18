@@ -14,6 +14,8 @@ struct Persistence {
         static let selectedCameraName = "selectedCameraName"
         static let zoomScale = "zoomScale"
         static let zoomTranslation = "zoomTranslation"
+        static let layout = "pipLayout"
+        static let tileCameras = "tileCameras"
     }
 
     func loadFrame() -> NSRect? {
@@ -55,5 +57,29 @@ struct Persistence {
     func saveZoom(camera: String, scale: CGFloat, translation: CGPoint) {
         defaults.set(Double(scale), forKey: Key.zoomScale + "." + camera)
         defaults.set(NSStringFromPoint(translation), forKey: Key.zoomTranslation + "." + camera)
+    }
+
+    func loadLayout() -> PiPLayout {
+        guard let raw = defaults.string(forKey: Key.layout), let layout = PiPLayout(rawValue: raw) else {
+            return .single
+        }
+        return layout
+    }
+
+    func saveLayout(_ layout: PiPLayout) {
+        defaults.set(layout.rawValue, forKey: Key.layout)
+    }
+
+    /// Per-tile camera assignment for a split/grid layout, keyed by tile index. An empty
+    /// string is the "unassigned" sentinel (UserDefaults arrays can't hold nil).
+    func loadTileCameraNames(_ layout: PiPLayout) -> [String?] {
+        guard let names = defaults.array(forKey: Key.tileCameras + "." + layout.rawValue) as? [String] else {
+            return Array(repeating: nil, count: layout.tileCount)
+        }
+        return names.map { $0.isEmpty ? nil : $0 }
+    }
+
+    func saveTileCameraNames(_ names: [String?], layout: PiPLayout) {
+        defaults.set(names.map { $0 ?? "" }, forKey: Key.tileCameras + "." + layout.rawValue)
     }
 }

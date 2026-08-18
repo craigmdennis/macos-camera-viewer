@@ -69,7 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cameras: { [weak self] in self?.loadedCameras ?? [] },
             selectedCameraName: { [weak self] in self?.activeCamera?.name },
             onSelectCamera: { [weak self] camera in self?.selectCamera(camera) },
-            onOpenSettings: { [weak self] in self?.openSettings() }
+            onOpenSettings: { [weak self] in self?.openSettings() },
+            currentLayout: { [weak controller] in controller?.layout ?? .single },
+            onSelectLayout: { [weak controller] layout in controller?.setLayout(layout) }
         )
 
         // Feed the in-viewer picker the same camera data + switch path as the menu bar.

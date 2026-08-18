@@ -1,5 +1,42 @@
 # Feature Changelog
 
+## Multi-stream layouts (2026-08-18)
+
+Added 2-camera (stacked) and 4-camera (2×2 grid) PiP layouts alongside the original
+single-camera view. Each tile runs its own independent player/reconnect loop and camera
+assignment; only one tile's audio plays at a time. Clicking a tile's video jumps straight
+to single view on that camera, with a one-tap way back to the grid. The window's live
+resize is aspect-locked to whatever keeps every tile filling its space (computed from the
+real camera resolution), so there's no letterboxing in any layout.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `CameraViewer/Window/PiPLayout.swift` | New. Pure enum (`.single`/`.split2`/`.grid4`) with `tileCount`, `minWindowSize`, and `frames(for:containerSize:spacing:)` — the tile geometry, shared by the AppKit grid view and the SwiftUI chrome overlay so they can't drift apart. Unit-tested. |
+| `CameraViewer/Window/StreamTileController.swift` | New. One tile's player + drawable view + independent `ReconnectPolicy`, mirroring the single-view reconnect loop but scoped per stream. |
+| `CameraViewer/Window/TileGridView.swift` | New. `NSView` positioning tile drawable views via `PiPLayout.frames`, re-run on every `setFrameSize`. |
+| `CameraViewer/Window/MultiStreamController.swift` | New. Owns a split/grid layout end-to-end: tiles, mute exclusivity, per-tile camera persistence, combined menu-bar state, and the grid's computed aspect ratio (from the first assigned tile's real video size). |
+| `CameraViewer/Window/PiPWindowController.swift` | Added `setLayout`/`switchToSingleCamera`; mounts either the original single-view tree or a `MultiStreamController.contentView` into the shared `hoverView`. Replaced `NSWindow.contentAspectRatio` (crashed AppKit's live-resize geometry when toggled to `.zero` for multi layouts) with a self-computed clamp in `windowWillResize`, shared by single and multi layouts via `lockAspectRatio`. Click-vs-drag on `HoverTrackingView` resolves which tile was tapped. |
+| `CameraViewer/Chrome/ChromeStyle.swift` | New. `VisualEffectBlur` + `hudCapsule()` extracted out of `ChromeOverlay` so single and multi chrome share the same HUD look. |
+| `CameraViewer/Chrome/TileCapsule.swift` | New. Per-tile mute + camera-picker capsule; hides the camera name (icons only) once the tile is too narrow for it to fit without overlapping the global controls. |
+| `CameraViewer/Chrome/MultiChromeOverlay.swift` | New. Global close/layout controls + one `TileCapsule` per tile, positioned via the same `PiPLayout.frames` the AppKit grid uses. |
+| `CameraViewer/Chrome/ChromeOverlay.swift` | Added a layout-switcher menu next to close/mute, and a one-tap "back to grid" button shown only after a tile click (not after an explicit layout-menu selection). |
+| `CameraViewer/Chrome/HoverTrackingView.swift` | Added `onClick`, firing on a plain click (no drag, no pan) — used to resolve which tile was tapped. |
+| `CameraViewer/Config/Persistence.swift` | Added `loadLayout`/`saveLayout` and `loadTileCameraNames`/`saveTileCameraNames` (per-layout, empty-string sentinel for "unassigned"). |
+| `CameraViewer/MenuBar/StatusItemController.swift` | Added a "Layout" submenu mirroring the existing "Cameras" submenu. |
+| `CameraViewerTests/PiPLayoutTests.swift` | New. Tile counts, frame geometry (no overlap, covers the container), min-size sanity. |
+
+### Key decisions
+
+- **`.single` mode's internals are untouched** — split/grid layouts are a parallel view tree that swaps into the same window, so zoom/pan, per-camera zoom persistence, and aspect-lock for the single view carry zero risk from this change
+- **Manual per-tile camera assignment**, not auto-filled from the config list order — persisted per layout so split2 and grid4 remember different assignments independently
+- **One audio stream at a time** — muting a tile force-mutes the others; not persisted, always starts muted on layout entry
+- **Zoom/pan disabled in multi layouts** — each tile just letterboxes via `.resizeAspect`; avoids per-tile hit-testing/persistence complexity for a secondary use case
+- **`NSWindow.contentAspectRatio` dropped entirely** in favor of a delegate-based clamp (`windowWillResize`) — setting the native property to `.zero` when leaving single view crashed AppKit's live-resize internals (`EXC_BREAKPOINT` in `_adjustNeedsDisplayRegionForNewFrame:`), confirmed via a real crash report; the self-computed clamp sidesteps that AppKit code path entirely and works identically for both single and multi layouts
+- **Grid aspect ratio from one real camera's resolution**, not a fixed guess — in practice all cameras on one NVR share a resolution, so any assigned tile is representative; recomputed whenever the reference tile's camera changes
+- **Explicit frame sync on remount** — `NSView.addSubview` does not retroactively resize a view to the superview's current bounds, only on the *next* resize via autoresizingMask; re-attaching the single view's `playerDrawableView`/`chromeHostingView` after a stint in a differently-sized multi layout needed an explicit `frame = hoverView.bounds` before re-adding
+
 ## Zoom & pan (2026-05-29)
 
 Added pinch-free zoom on the camera feed. ⌘ + scroll zooms 1×–8×; dragging while zoomed pans; double-click resets. Implemented as a `CATransform3D` on the player's drawable layer — VLC is not involved. A zoom-level badge appears at bottom-center while zoomed.
