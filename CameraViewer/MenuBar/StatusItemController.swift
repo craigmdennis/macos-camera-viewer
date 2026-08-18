@@ -10,11 +10,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let selectedCameraName: () -> String?
     private let onSelectCamera: (CameraConfig) -> Void
     private let onOpenSettings: () -> Void
+    private let currentLayout: () -> PiPLayout
+    private let onSelectLayout: (PiPLayout) -> Void
     private var cancellables = Set<AnyCancellable>()
     private var statusLineItem: NSMenuItem!
     private var currentState: NativeCameraPlayer.State = .idle
     private var showHideItem: NSMenuItem!
     private var camerasSubmenuItem: NSMenuItem!
+    private var layoutSubmenuItem: NSMenuItem!
 
     init(
         statePublisher: AnyPublisher<NativeCameraPlayer.State, Never>,
@@ -24,7 +27,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         cameras: @escaping () -> [CameraConfig],
         selectedCameraName: @escaping () -> String?,
         onSelectCamera: @escaping (CameraConfig) -> Void,
-        onOpenSettings: @escaping () -> Void
+        onOpenSettings: @escaping () -> Void,
+        currentLayout: @escaping () -> PiPLayout,
+        onSelectLayout: @escaping (PiPLayout) -> Void
     ) {
         self.onReconnect = onReconnect
         self.onToggleVisibility = onToggleVisibility
@@ -33,6 +38,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.selectedCameraName = selectedCameraName
         self.onSelectCamera = onSelectCamera
         self.onOpenSettings = onOpenSettings
+        self.currentLayout = currentLayout
+        self.onSelectLayout = onSelectLayout
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -69,6 +76,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         camerasSubmenuItem.submenu = NSMenu(title: "Cameras")
         menu.addItem(camerasSubmenuItem)
 
+        layoutSubmenuItem = NSMenuItem(title: "Layout", action: nil, keyEquivalent: "")
+        layoutSubmenuItem.submenu = NSMenu(title: "Layout")
+        menu.addItem(layoutSubmenuItem)
+
         menu.addItem(.separator())
 
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
@@ -88,6 +99,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         showHideItem.title = isWindowVisible() ? "Hide Camera" : "Show Camera"
         statusLineItem.title = statusDescription(currentState)
         rebuildCamerasSubmenu()
+        rebuildLayoutSubmenu()
     }
 
     private func statusDescription(_ state: NativeCameraPlayer.State) -> String {
@@ -109,6 +121,19 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             item.target = self
             item.state = camera.name == currentName ? .on : .off
             item.representedObject = camera
+            submenu.addItem(item)
+        }
+    }
+
+    private func rebuildLayoutSubmenu() {
+        let submenu = layoutSubmenuItem.submenu!
+        submenu.removeAllItems()
+        let current = currentLayout()
+        for layout in PiPLayout.allCases {
+            let item = NSMenuItem(title: layout.displayName, action: #selector(selectLayout(_:)), keyEquivalent: "")
+            item.target = self
+            item.state = layout == current ? .on : .off
+            item.representedObject = layout
             submenu.addItem(item)
         }
     }
@@ -144,5 +169,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func selectCamera(_ sender: NSMenuItem) {
         guard let camera = sender.representedObject as? CameraConfig else { return }
         onSelectCamera(camera)
+    }
+
+    @objc private func selectLayout(_ sender: NSMenuItem) {
+        guard let layout = sender.representedObject as? PiPLayout else { return }
+        onSelectLayout(layout)
     }
 }

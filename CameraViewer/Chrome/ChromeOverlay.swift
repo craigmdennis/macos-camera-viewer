@@ -10,6 +10,8 @@ struct ChromeOverlay: View {
     let onClose: () -> Void
     let onToggleMute: () -> Void
     let onSelectCamera: (CameraConfig) -> Void
+    let onChangeLayout: (PiPLayout) -> Void
+    let quickReturnLayout: PiPLayout?
 
     var body: some View {
         ZStack {
@@ -66,11 +68,32 @@ struct ChromeOverlay: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isMuted ? "Unmute" : "Mute")
+
+            if let quickReturnLayout {
+                Button(action: { onChangeLayout(quickReturnLayout) }) {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back to \(quickReturnLayout.displayName)")
+            }
+
+            Menu {
+                ForEach(PiPLayout.allCases, id: \.self) { layout in
+                    Button(layout.displayName) { onChangeLayout(layout) }
+                }
+            } label: {
+                Image(systemName: "rectangle.grid.2x2")
+                    .font(.system(size: 18, weight: .semibold))
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel("Change layout")
         }
         .foregroundStyle(.primary)
-        .padding(.horizontal, 14)
-        .frame(height: 36)
-        .background(hudCapsule)
+        .hudCapsule()
     }
 
     private var cameraPicker: some View {
@@ -96,7 +119,10 @@ struct ChromeOverlay: View {
             .padding(.horizontal, 14)
             .frame(height: 36)
             .frame(maxWidth: 180)
-            .background(hudCapsule)
+            .background(
+                VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow)
+                    .clipShape(Capsule())
+            )
         }
         // .button + .plain so the label's HUD capsule shows (matches the left controls);
         // .borderlessButton draws its own chrome and hides the custom background.
@@ -115,11 +141,6 @@ struct ChromeOverlay: View {
             }
         )
     }
-
-    private var hudCapsule: some View {
-        VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow)
-            .clipShape(Capsule())
-    }
 }
 
 private struct ZoomBadge: View {
@@ -135,23 +156,5 @@ private struct ZoomBadge: View {
                 VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow)
                     .clipShape(Capsule())
             )
-    }
-}
-
-private struct VisualEffectBlur: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
     }
 }

@@ -6,14 +6,13 @@ Read `docs/CHANGELOG.md` first. It summarises every feature added since the init
 
 ## Project overview
 
-A macOS menu-bar app (no Dock icon) that displays RTSP camera streams in a floating PiP window. Single `NSWindow`, always on top, corner-snapping, hover chrome. Full design spec at `docs/superpowers/specs/2026-04-17-macos-camera-viewer-design.md`.
+A macOS menu-bar app (no Dock icon) that displays RTSP camera streams in a floating PiP window. Single `NSWindow`, always on top, corner-snapping, hover chrome, single/2-up/4-up layouts. Full design spec at `docs/superpowers/specs/2026-04-17-macos-camera-viewer-design.md`; native player rewrite at `docs/superpowers/specs/2026-05-29-native-rtsp-player-design.md`.
 
 ## Stack
 
 - Swift + AppKit (window/menu) + SwiftUI (chrome overlay only)
-- VLCKit 3.x for RTSP playback
-- go2rtc subprocess (`bin/go2rtc`) to bridge RTSPS → plain RTSP
-- No other third-party dependencies
+- Fully native RTSP/RTP client (`CameraViewer/Player/RTSP`, `.../RTP`) + VideoToolbox decode via `AVSampleBufferDisplayLayer` — no VLCKit, no ffmpeg, no subprocess
+- No third-party dependencies
 
 ## Conventions
 
