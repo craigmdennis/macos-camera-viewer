@@ -10,6 +10,13 @@ final class HoverTrackingView: NSView {
     private var trackingArea: NSTrackingArea?
     private var dragOrigin: NSPoint?              // pan reference, in window coords
     private var windowDragStart: (mouse: NSPoint, origin: NSPoint)?
+    private var resize: (edges: EdgeResize.Edges, mouse: NSPoint, frame: NSRect)?
+    private var lastDrag: (point: NSPoint, time: TimeInterval)?
+    private var dragVelocity = CGPoint.zero          // points/sec, screen coords
+
+    // Window-move gesture lifecycle, for the owner's snap animation.
+    var onDragBegin: (() -> Void)?
+    var onDragEnd: ((CGPoint) -> Void)?              // release velocity
     private var longPressTimer: Timer?
     private var isPanning = false
 
@@ -28,7 +35,7 @@ final class HoverTrackingView: NSView {
         }
         let area = NSTrackingArea(
             rect: bounds,
-            options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],
+            options: [.activeAlways, .mouseEnteredAndExited, .mouseMoved, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
@@ -42,6 +49,7 @@ final class HoverTrackingView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         isHovered.send(false)
+        NSCursor.arrow.set()
     }
 
     // MARK: - Space key tracking
@@ -52,8 +60,10 @@ final class HoverTrackingView: NSView {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
                 guard let self, event.keyCode == Self.spaceKeyCode else { return event }
                 self.spaceHeld = (event.type == .keyDown)
-                // Don't swallow — a focused text field still needs the space key.
-                return event
+                // Swallow only for this window: nothing here handles keys, so letting the
+                // event through makes AppKit beep on every key-repeat. Other windows
+                // (Settings text fields) still get the space key.
+                return event.window === self.window ? nil : event
             }
         } else if window == nil, let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
@@ -78,8 +88,16 @@ final class HoverTrackingView: NSView {
             return
         }
         isPanning = false
+        let edges = EdgeResize.edges(at: convert(event.locationInWindow, from: nil), in: bounds.size)
+        if !edges.isEmpty, let window {
+            resize = (edges, NSEvent.mouseLocation, window.frame)
+            return
+        }
         dragOrigin = event.locationInWindow
         windowDragStart = (NSEvent.mouseLocation, window?.frame.origin ?? .zero)
+        lastDrag = (NSEvent.mouseLocation, event.timestamp)
+        dragVelocity = .zero
+        onDragBegin?()
 
         guard zoomController?.isZoomed == true else { return }
 
@@ -97,6 +115,16 @@ final class HoverTrackingView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if let resize, let window {
+            let now = NSEvent.mouseLocation
+            let frame = EdgeResize.frame(
+                start: resize.frame, edges: resize.edges,
+                delta: CGPoint(x: now.x - resize.mouse.x, y: now.y - resize.mouse.y),
+                aspect: window.contentAspectRatio,
+                min: window.contentMinSize, max: window.contentMaxSize)
+            window.setFrame(frame, display: true)
+            return
+        }
         if isPanning {
             applyPan(to: event.locationInWindow)
             return
@@ -107,9 +135,21 @@ final class HoverTrackingView: NSView {
         let now = NSEvent.mouseLocation
         window?.setFrameOrigin(NSPoint(x: start.origin.x + (now.x - start.mouse.x),
                                        y: start.origin.y + (now.y - start.mouse.y)))
+        if let last = lastDrag, event.timestamp > last.time {
+            let dt = event.timestamp - last.time
+            // Light smoothing so one jittery event does not decide the flick direction.
+            dragVelocity.x = 0.5 * dragVelocity.x + 0.5 * (now.x - last.point.x) / dt
+            dragVelocity.y = 0.5 * dragVelocity.y + 0.5 * (now.y - last.point.y) / dt
+        }
+        lastDrag = (now, event.timestamp)
     }
 
     override func mouseUp(with event: NSEvent) {
+        if windowDragStart != nil, !isPanning, let last = lastDrag {
+            // A pause before release means no flick.
+            let velocity = event.timestamp - last.time > 0.1 ? .zero : dragVelocity
+            onDragEnd?(velocity)
+        }
         endGesture()
     }
 
@@ -152,6 +192,8 @@ final class HoverTrackingView: NSView {
         cancelLongPress()
         dragOrigin = nil
         windowDragStart = nil
+        resize = nil
+        lastDrag = nil
         isPanning = false
         NSCursor.arrow.set()
     }
@@ -167,6 +209,13 @@ final class HoverTrackingView: NSView {
         } else {
             super.scrollWheel(with: event)
         }
+    }
+
+    // Wider-than-AppKit resize band needs matching cursors; .activeAlways + mouseMoved
+    // is the tracking area we already have, so update the cursor from there.
+    override func mouseMoved(with event: NSEvent) {
+        let edges = EdgeResize.edges(at: convert(event.locationInWindow, from: nil), in: bounds.size)
+        (EdgeResize.cursor(for: edges) ?? .arrow).set()
     }
 
     override var isFlipped: Bool { true }

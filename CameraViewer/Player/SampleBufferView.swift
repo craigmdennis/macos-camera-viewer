@@ -24,4 +24,18 @@ final class SampleBufferView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    // AppKit resets the backing layer's transform during layout, which happens on every
+    // live-resize tick. Let the owner re-assert the zoom transform after each pass.
+    var onLayout: (() -> Void)?
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        onLayout?()
+    }
 }

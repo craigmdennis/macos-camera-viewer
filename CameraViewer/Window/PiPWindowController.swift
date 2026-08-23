@@ -15,7 +15,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     private var reconnectPolicy = ReconnectPolicy()
     private var reconnectTimer: Timer?
     private var hoverFadeOutTimer: Timer?
-    private var dragEndDebounce: Timer?
+    private var spring: WindowSpring!
     private var cancellables = Set<AnyCancellable>()
     private var chromeVisible = false
     private var isLoading = true
@@ -73,6 +73,10 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         // Initial restore is deferred to the makeKeyAndOrderFront block below, after the
         // layer is laid out AND AppDelegate has wired `selectedCameraName`.
         hoverView.zoomController = zoomController
+        spring = WindowSpring(window: window)
+        hoverView.onDragBegin = { [weak self] in self?.spring.cancel() }
+        hoverView.onDragEnd = { [weak self] velocity in self?.snapAfterDrag(velocity: velocity) }
+        playerDrawableView.onLayout = { [weak self] in self?.zoomController.viewDidResize() }
 
         window.contentView = hoverView
         hoverView.addSubview(playerDrawableView)
@@ -134,16 +138,24 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     deinit {
         reconnectTimer?.invalidate()
         hoverFadeOutTimer?.invalidate()
-        dragEndDebounce?.invalidate()
+        spring?.cancel()
         videoSizeTimer?.invalidate()
     }
 
     func showWindow() {
         window.makeKeyAndOrderFront(nil)
+        reconnectPolicy.reset()
+        isLoading = true
+        refreshChrome()
+        player.play(url: streamURL)
     }
 
+    /// Hiding the window tears down the stream too; an ordered-out window otherwise keeps
+    /// playing audio and holding the camera connection open.
     func hideWindow() {
         window.orderOut(nil)
+        reconnectTimer?.invalidate()
+        player.stop()
     }
 
     var isWindowVisible: Bool { window.isVisible }
@@ -163,7 +175,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     }
 
     private func installChrome() {
-        let hosting = NSHostingView(rootView: currentOverlay())
+        let hosting = FirstMouseHostingView(rootView: currentOverlay())
         hosting.frame = hoverView.bounds
         hosting.autoresizingMask = [.width, .height]
         hosting.wantsLayer = true
@@ -310,37 +322,31 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
 
     func windowDidMove(_ notification: Notification) {
         persistence.saveFrame(window.frame)
-        scheduleDragEndSnap()
     }
 
-    func windowDidEndLiveResize(_ notification: Notification) {
+    // Fires for both AppKit's edge resize and HoverTrackingView's manual one; the zoom
+    // re-clamp happens in SampleBufferView.onLayout.
+    func windowDidResize(_ notification: Notification) {
         persistence.saveFrame(window.frame)
-        zoomController.viewDidResize()
     }
 
-    // Corner snap on drag-end. AppKit doesn't fire a discrete "drag ended" event
-    // for windows moved via isMovableByWindowBackground, so we debounce windowDidMove
-    // — when no further moves arrive for 150 ms, treat that as the drag ending.
-    func installDragEndSnap() {
-        // No-op for API compatibility with AppDelegate; the snap is wired through
-        // windowDidMove → scheduleDragEndSnap → snapToNearestCorner.
-    }
+    // Kept for AppDelegate; the snap is wired through HoverTrackingView.onDragEnd.
+    func installDragEndSnap() {}
 
-    private func scheduleDragEndSnap() {
-        dragEndDebounce?.invalidate()
-        dragEndDebounce = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
-            self?.snapToNearestCorner()
-        }
-    }
-
-    private func snapToNearestCorner() {
+    /// Release handler from HoverTrackingView: project the flick, and if that lands near
+    /// a corner, spring the window into the dock. Anywhere else it stays where released.
+    private func snapAfterDrag(velocity: CGPoint) {
         let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-        let snapped = CornerSnap.snap(windowFrame: window.frame, screenVisibleFrame: visible)
-        guard snapped != window.frame else { return }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            window.animator().setFrame(snapped, display: true)
+        guard let target = CornerSnap.flickTarget(windowFrame: window.frame, velocity: velocity,
+                                                  screenVisibleFrame: visible) else { return }
+        spring.animate(toOrigin: target.origin, initialVelocity: velocity) { [weak self] in
+            self?.persistence.saveFrame(target)
         }
-        persistence.saveFrame(snapped)
     }
+}
+
+/// The chrome sits above HoverTrackingView and is the hit-test target, so it must accept the
+/// activating click or an unfocused window needs one click to focus and a second to drag.
+private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
