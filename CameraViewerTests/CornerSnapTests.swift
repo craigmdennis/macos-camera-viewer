@@ -10,31 +10,26 @@ final class CornerSnapTests: XCTestCase {
         NSRect(origin: origin, size: windowSize)
     }
 
-    func testSnapsToBottomLeftWhenCenterNearCorner() {
-        // Window center a few px from bottom-left corner
-        let originNearBL = NSPoint(x: -windowSize.width / 2 + 10, y: -windowSize.height / 2 + 10)
-        let snapped = CornerSnap.snap(windowFrame: window(at: originNearBL), screenVisibleFrame: screen)
+    func testSnapsToBottomLeftWhenOriginNearDock() {
+        let snapped = CornerSnap.snap(windowFrame: window(at: NSPoint(x: 30, y: 40)), screenVisibleFrame: screen)
         XCTAssertEqual(snapped.origin, NSPoint(x: 8, y: 8))
         XCTAssertEqual(snapped.size, windowSize)
     }
 
     func testSnapsToBottomRight() {
-        let origin = NSPoint(x: screen.maxX - windowSize.width / 2 - 10,
-                             y: -windowSize.height / 2 + 10)
+        let origin = NSPoint(x: screen.maxX - windowSize.width - 30, y: 30)
         let snapped = CornerSnap.snap(windowFrame: window(at: origin), screenVisibleFrame: screen)
         XCTAssertEqual(snapped.origin, NSPoint(x: screen.maxX - windowSize.width - 8, y: 8))
     }
 
     func testSnapsToTopLeft() {
-        let origin = NSPoint(x: -windowSize.width / 2 + 10,
-                             y: screen.maxY - windowSize.height / 2 - 10)
+        let origin = NSPoint(x: 30, y: screen.maxY - windowSize.height - 30)
         let snapped = CornerSnap.snap(windowFrame: window(at: origin), screenVisibleFrame: screen)
         XCTAssertEqual(snapped.origin, NSPoint(x: 8, y: screen.maxY - windowSize.height - 8))
     }
 
     func testSnapsToTopRight() {
-        let origin = NSPoint(x: screen.maxX - windowSize.width / 2 - 10,
-                             y: screen.maxY - windowSize.height / 2 - 10)
+        let origin = NSPoint(x: screen.maxX - windowSize.width - 30, y: screen.maxY - windowSize.height - 30)
         let snapped = CornerSnap.snap(windowFrame: window(at: origin), screenVisibleFrame: screen)
         XCTAssertEqual(snapped.origin,
                        NSPoint(x: screen.maxX - windowSize.width - 8,
@@ -49,17 +44,26 @@ final class CornerSnapTests: XCTestCase {
     }
 
     func testDoesNotSnapJustBeyondThreshold() {
-        // Center is exactly 81 px from bottom-left corner — outside default threshold of 80.
-        let dx: CGFloat = 81 / sqrt(2)
-        let origin = NSPoint(x: dx - windowSize.width / 2, y: dx - windowSize.height / 2)
-        let frame = window(at: origin)
+        let d: CGFloat = 81 / sqrt(2)
+        let frame = window(at: NSPoint(x: 8 + d, y: 8 + d))
         XCTAssertEqual(CornerSnap.snap(windowFrame: frame, screenVisibleFrame: screen), frame)
     }
 
     func testSnapsExactlyAtThreshold() {
-        let dx: CGFloat = 80 / sqrt(2)
-        let origin = NSPoint(x: dx - windowSize.width / 2, y: dx - windowSize.height / 2)
-        let snapped = CornerSnap.snap(windowFrame: window(at: origin), screenVisibleFrame: screen)
+        let d: CGFloat = 80 / sqrt(2)
+        let snapped = CornerSnap.snap(windowFrame: window(at: NSPoint(x: 8 + d, y: 8 + d)), screenVisibleFrame: screen)
         XCTAssertEqual(snapped.origin, NSPoint(x: 8, y: 8))
+    }
+
+    func testFlickTowardCornerDocksThere() {
+        // 300 px from the dock, released with a 2000 pt/s flick toward it (projects 500 px).
+        let frame = window(at: NSPoint(x: 308, y: 8))
+        let target = CornerSnap.flickTarget(windowFrame: frame, velocity: CGPoint(x: -2000, y: 0), screenVisibleFrame: screen)
+        XCTAssertEqual(target?.origin, NSPoint(x: 8, y: 8))
+    }
+
+    func testReleaseAwayFromCornersReturnsNil() {
+        let frame = window(at: NSPoint(x: 600, y: 400))
+        XCTAssertNil(CornerSnap.flickTarget(windowFrame: frame, velocity: .zero, screenVisibleFrame: screen))
     }
 }

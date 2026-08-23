@@ -1,5 +1,33 @@
 # Feature Changelog
 
+## Interaction fixes (2026-08-23)
+
+Five bugs from real use (GitHub #4 – #8): the stream kept running after closing the window, an unfocused window needed two clicks to drag, holding space beeped, zoom reset during live resize, and the resize hit target was too small.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `CameraViewer/Window/PiPWindowController.swift` | `hideWindow()` now cancels the reconnect timer and stops the player; `showWindow()` restarts it with the spinner. Chrome is hosted in a private `FirstMouseHostingView` (`acceptsFirstMouse → true`). `windowDidResize` replaces `windowDidEndLiveResize` for frame persistence; `SampleBufferView.onLayout` re-asserts the zoom transform. |
+| `CameraViewer/Player/NativeCameraPlayer.swift` | `stop()` sets `state = .idle` so the menu bar reads "Idle" while hidden. |
+| `CameraViewer/Chrome/HoverTrackingView.swift` | Space key events are swallowed only when `event.window` is the PiP window. A click within `EdgeResize.band` of an edge/corner resizes the window manually on drag; `mouseMoved` sets matching resize cursors. |
+| `CameraViewer/Player/SampleBufferView.swift` | `onLayout` callback; `setFrameSize` marks `needsLayout`. |
+| `CameraViewer/Window/EdgeResize.swift` | New. Pure edge detection (flipped view coords) and frame math honouring `contentAspectRatio`, min/max size, and the fixed opposite edge. Unit-tested. |
+| `CameraViewerTests/EdgeResizeTests.swift` | New. 6 tests. |
+| `CameraViewer/Window/CornerSnap.swift` | Threshold now measures the window's origin against its docked position (was centre-to-screen-corner, which only fired with the window three-quarters off-screen). New `flickTarget(windowFrame:velocity:screenVisibleFrame:)` projects the release velocity 0.25 s, clamped to the screen, before snapping. |
+| `CameraViewer/Window/WindowSpring.swift` | New. Pure `Spring.step` (semi-implicit Euler, stiffness 220, damping 24, slightly underdamped) plus `WindowSpring`, a 60 Hz timer driving `setFrameOrigin`. |
+| `CameraViewerTests/CornerSnapTests.swift`, `SpringTests.swift` | Snap tests rewritten for the origin-based threshold; flick and spring-settle tests added. |
+
+### Key decisions
+
+- **Hide == stop** — an ordered-out window is indistinguishable from a quit to the user, so it must drop the camera connection; show reconnects
+- **First-mouse on the hosting view, not hit-test passthrough** — the SwiftUI chrome is the hit-test target and forwards unhandled mouse events up the responder chain; accepting the activating click there fixes both drag and the buttons in one place
+- **Swallow space per-window** — the Settings window's text fields live in another window, so `event.window === self.window` keeps them working
+- **Re-apply zoom from `layout()`** — AppKit resets a backing layer's transform in the layout pass, and that pass runs per live-resize tick, so the hook must be there rather than in a window delegate
+- **Snap from `mouseUp`, with velocity** — `HoverTrackingView` owns the move gesture, so it reports `onDragBegin`/`onDragEnd(velocity)`; the 150 ms `windowDidMove` debounce (which also snapped mid-drag on a pause) is gone. A pause over 0.1 s before release zeroes the velocity
+- **Spring by hand** — `NSAnimationContext` cannot overshoot, so the elastic dock is a manual spring; grabbing the window mid-animation cancels it. Releasing away from a corner leaves the window where it is
+- **Manual edge resize** — AppKit exposes no way to widen a borderless window's resize band; the view claims a 10 px band and does the geometry itself. Diagonal cursors use `NSCursor.frameResize` on macOS 15+, arrow below
+
 ## Zoom & pan (2026-05-29)
 
 Added pinch-free zoom on the camera feed. ⌘ + scroll zooms 1×–8×; dragging while zoomed pans; double-click resets. Implemented as a `CATransform3D` on the player's drawable layer — VLC is not involved. A zoom-level badge appears at bottom-center while zoomed.

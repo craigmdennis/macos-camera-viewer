@@ -51,6 +51,7 @@ final class NativeCameraPlayer: NSObject {
     }
 
     func stop() {
+        state = .idle
         client?.stop()
         client = nil
         decoder?.reset()
