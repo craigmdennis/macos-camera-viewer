@@ -43,19 +43,22 @@ final class RTSPConnection {
         self.connection = connection
 
         connection.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                self?.onEvent?(.ready)
-                self?.receive()
-            case .failed(let error):
-                self?.onEvent?(.failed(error))
-            case .cancelled:
-                self?.onEvent?(.closed)
-            default:
-                break
-            }
+            guard let event = Self.event(for: state) else { return }
+            self?.onEvent?(event)
+            if case .ready = state { self?.receive() }
         }
         connection.start(queue: queue)
+    }
+
+    /// `.waiting` counts as failure: NWConnection only leaves it on a network path change,
+    /// so a refused connect with Wi-Fi still up (e.g. NVR restarting after wake) waits forever.
+    static func event(for state: NWConnection.State) -> Event? {
+        switch state {
+        case .ready: return .ready
+        case .failed(let error), .waiting(let error): return .failed(error)
+        case .cancelled: return .closed
+        default: return nil
+        }
     }
 
     func send(_ request: RTSPRequest) {
