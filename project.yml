@@ -27,8 +27,8 @@ targets:
         # would otherwise make it "Camera_Viewer" and break @testable import.
         PRODUCT_MODULE_NAME: CameraViewer
         PRODUCT_BUNDLE_IDENTIFIER: com.craigmdennis.cameraviewer
-        MARKETING_VERSION: "0.2.0"
-        CURRENT_PROJECT_VERSION: "2"
+        MARKETING_VERSION: "0.2.1"
+        CURRENT_PROJECT_VERSION: "3"
         # Local/dev builds are ad-hoc signed ("-"). The notarized release path overrides
         # the identity at the command line (scripts/release.sh) once a Developer ID cert
         # exists — set DEVELOPMENT_TEAM here to your 10-char Team ID after enrolling.
