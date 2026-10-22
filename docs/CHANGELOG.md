@@ -1,5 +1,20 @@
 # Feature Changelog
 
+## Reconnect after a refused connection (2026-10-22)
+
+After the screen woke, the stream stayed on the spinner indefinitely. The NVR reset the connection, and the reconnect attempt was refused. `NWConnection` reports a refused connect as `.waiting`, which `RTSPConnection` ignored, so the player never reached `.error` and the reconnect timer never ran again.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `CameraViewer/Player/RTSP/RTSPConnection.swift` | State mapping moved to `static func event(for:)`. `.waiting` maps to `.failed`, so `ReconnectPolicy` backoff retries it. |
+| `CameraViewerTests/RTSPConnectionTests.swift` | New. 3 tests. |
+
+### Key decisions
+
+- **`.waiting` is a failure** — `NWConnection` leaves `.waiting` only on a network path change. With Wi-Fi up, the path never changes, so the app's own backoff must retry instead
+
 ## Interaction fixes (2026-08-23)
 
 Five bugs from real use (GitHub #4 – #8): the stream kept running after closing the window, an unfocused window needed two clicks to drag, holding space beeped, zoom reset during live resize, and the resize hit target was too small.
